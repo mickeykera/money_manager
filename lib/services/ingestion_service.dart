@@ -5,46 +5,60 @@ import 'package:uuid/uuid.dart';
 import '../core/constants/app_constants.dart';
 import '../data/database/database_helper.dart';
 import '../data/repositories/account_repository.dart';
+import '../data/repositories/bundle_repository.dart';
 import '../data/repositories/settings_repository.dart';
 import '../data/repositories/transaction_repository.dart';
+import '../domain/models/bundle_model.dart';
 import '../domain/models/ingestion_log_model.dart';
 import '../domain/models/transaction_model.dart';
 import '../parser/models/parse_result.dart';
 import '../parser/parser_engine.dart';
+import '../parser/telecom/telecom_parse_result.dart';
+import '../parser/telecom/telecom_parser_engine.dart';
 
 class IngestionResponse {
   final bool success;
   final bool isDuplicate;
   final bool isPendingReview;
+  final bool isTelecomUpdate;
   final String message;
   final TransactionModel? transaction;
   final ParseResult? parseResult;
+  final TelecomParseResult? telecomResult;
 
   const IngestionResponse({
     required this.success,
     this.isDuplicate = false,
     this.isPendingReview = false,
+    this.isTelecomUpdate = false,
     required this.message,
     this.transaction,
     this.parseResult,
+    this.telecomResult,
   });
 }
 
 class IngestionService {
   final ParserEngine _parserEngine;
+  final TelecomParserEngine _telecomEngine;
   final TransactionRepository _transactionRepo;
+  final BundleRepository _bundleRepo;
   final AccountRepository _accountRepo;
   final SettingsRepository _settingsRepo;
   final DatabaseHelper _dbHelper;
 
   IngestionService({
     ParserEngine? parserEngine,
+    TelecomParserEngine? telecomEngine,
     TransactionRepository? transactionRepo,
+    BundleRepository? bundleRepo,
     AccountRepository? accountRepo,
     SettingsRepository? settingsRepo,
     DatabaseHelper? dbHelper,
   })  : _parserEngine = parserEngine ?? ParserEngine(),
+        _telecomEngine = telecomEngine ?? TelecomParserEngine(),
         _transactionRepo = transactionRepo ?? TransactionRepository(),
+        _bundleRepo = bundleRepo ?? BundleRepository(),
         _accountRepo = accountRepo ?? AccountRepository(),
         _settingsRepo = settingsRepo ?? SettingsRepository(),
         _dbHelper = dbHelper ?? DatabaseHelper();
@@ -56,12 +70,27 @@ class IngestionService {
     DateTime? messageTime,
   }) async {
     final timestamp = messageTime ?? DateTime.now();
-    final parseResult = _parserEngine.parse(rawMessage, sender: sender);
+    final cleanMessage = rawMessage.trim();
+    final sanitizedSnippet = _createSanitizedSnippet(cleanMessage);
 
-    // Sanitize snippet for audit log (truncate and avoid sensitive strings)
-    final sanitizedSnippet = _createSanitizedSnippet(rawMessage);
+    // 1. Telecom Bundle Branch (Ethio telecom & Safaricom Ethiopia)
+    if (_telecomEngine.canParse(cleanMessage, sender)) {
+      final telecomResult = _telecomEngine.parse(cleanMessage, sender);
+      if (telecomResult.isRecognized) {
+        return _handleTelecomMessage(
+          telecomResult: telecomResult,
+          rawMessage: cleanMessage,
+          sender: sender,
+          timestamp: timestamp,
+          sanitizedSnippet: sanitizedSnippet,
+        );
+      }
+    }
 
-    // 1. Rejected OTP or Security Message
+    // 2. Standard Financial Transaction Parsing
+    final parseResult = _parserEngine.parse(cleanMessage, sender: sender);
+
+    // 2a. Rejected OTP or Security Message
     if (parseResult.status == ParseStatus.rejectedOtp) {
       await _logIngestion(
         sender: sender,
@@ -77,7 +106,7 @@ class IngestionService {
       );
     }
 
-    // 2. Failed / Declined Transaction
+    // 2b. Failed / Declined Transaction
     if (parseResult.status == ParseStatus.rejectedFailedTxn) {
       await _logIngestion(
         sender: sender,
@@ -93,7 +122,7 @@ class IngestionService {
       );
     }
 
-    // 3. Unrecognized or parse error
+    // 2c. Unrecognized or parse error
     if (parseResult.status == ParseStatus.rejectedNonFinancial ||
         parseResult.status == ParseStatus.error) {
       await _logIngestion(
@@ -110,7 +139,7 @@ class IngestionService {
       );
     }
 
-    // 4. Generate deduplication fingerprint
+    // 2d. Generate deduplication fingerprint
     final fingerprint = _generateFingerprint(
       sender: sender ?? parseResult.institution,
       amountSantims: parseResult.amountSantims,
@@ -118,7 +147,7 @@ class IngestionService {
       timestamp: timestamp,
     );
 
-    // 5. Check duplicate
+    // 2e. Check duplicate
     final isDup = await _transactionRepo.isDuplicate(
       fingerprint,
       reference: parseResult.reference,
@@ -143,16 +172,16 @@ class IngestionService {
       );
     }
 
-    // 6. Resolve Account ID
+    // 2f. Resolve Account ID
     final accountId = await _resolveAccountId(sender, parseResult.institution);
 
-    // 7. Resolve Category ID
+    // 2g. Resolve Category ID
     final categoryId = await _resolveCategoryId(
       merchant: parseResult.merchant,
       type: parseResult.transactionType,
     );
 
-    // 8. Privacy setting for original message
+    // 2h. Privacy setting for original message
     final retainSmsSetting = await _settingsRepo.getSetting(AppConstants.keyRetainOriginalSms);
     final shouldRetainSms = retainSmsSetting != 'false';
 
@@ -180,10 +209,10 @@ class IngestionService {
       updatedAt: DateTime.now(),
     );
 
-    // 9. Atomically persist transaction
+    // 2i. Atomically persist transaction
     await _transactionRepo.insertTransaction(tx);
 
-    // 10. Audit log
+    // 2j. Audit log
     await _logIngestion(
       sender: sender,
       snippet: sanitizedSnippet,
@@ -200,6 +229,121 @@ class IngestionService {
           : 'Transaction flagged for review due to low parser confidence',
       transaction: tx,
       parseResult: parseResult,
+    );
+  }
+
+  Future<IngestionResponse> _handleTelecomMessage({
+    required TelecomParseResult telecomResult,
+    required String rawMessage,
+    String? sender,
+    required DateTime timestamp,
+    required String sanitizedSnippet,
+  }) async {
+    const uuid = Uuid();
+    TransactionModel? tx;
+
+    // A. If message reports a purchase with an explicit monetary price:
+    if (telecomResult.isPurchase &&
+        telecomResult.purchasePriceSantims != null &&
+        telecomResult.purchasePriceSantims! > 0) {
+      final fingerprint = _generateFingerprint(
+        sender: sender ?? telecomResult.provider,
+        amountSantims: telecomResult.purchasePriceSantims!,
+        reference: telecomResult.bundleName,
+        timestamp: timestamp,
+      );
+
+      final isDup = await _transactionRepo.isDuplicate(
+        fingerprint,
+        reference: telecomResult.bundleName,
+        amountSantims: telecomResult.purchasePriceSantims!,
+        timestamp: timestamp,
+      );
+
+      if (!isDup) {
+        final accountId = await _resolveAccountId(sender, telecomResult.provider);
+        final retainSmsSetting = await _settingsRepo.getSetting(AppConstants.keyRetainOriginalSms);
+        final shouldRetainSms = retainSmsSetting != 'false';
+
+        tx = TransactionModel(
+          id: uuid.v4(),
+          amountSantims: telecomResult.purchasePriceSantims!,
+          currency: AppConstants.defaultCurrency,
+          type: AppConstants.typeExpense,
+          merchant: '${telecomResult.provider}: ${telecomResult.bundleName}',
+          timestamp: timestamp,
+          categoryId: 'cat_utilities',
+          accountId: accountId,
+          source: AppConstants.sourceSms,
+          importStatus: AppConstants.statusPosted,
+          sourceFingerprint: fingerprint,
+          originalMessage: shouldRetainSms ? rawMessage : null,
+          reference: null,
+          isReviewed: true,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        await _transactionRepo.insertTransaction(tx);
+      }
+    }
+
+    // B. Save or Update the Telecom Bundle Model
+    final existingBundle = await _bundleRepo.findActiveBundle(
+      provider: telecomResult.provider,
+      category: telecomResult.category,
+    );
+
+    String bundleId;
+    if (telecomResult.isPurchase || existingBundle == null) {
+      bundleId = uuid.v4();
+      final newBundle = TelecomBundleModel(
+        id: bundleId,
+        provider: telecomResult.provider,
+        bundleName: telecomResult.bundleName,
+        category: telecomResult.category,
+        originalAllowance: telecomResult.originalAllowance,
+        remainingAllowance: telecomResult.remainingAllowance,
+        unit: telecomResult.unit,
+        activationTime: telecomResult.activationTime ?? timestamp,
+        expiryTime: telecomResult.expiryTime,
+        purchasePriceSantims: telecomResult.purchasePriceSantims,
+        sourceFingerprint: rawMessage.hashCode.toString(),
+        lastConfirmedTime: timestamp,
+        confidenceScore: telecomResult.confidenceScore,
+        status: 'active',
+      );
+      await _bundleRepo.saveBundle(newBundle);
+    } else {
+      bundleId = existingBundle.id;
+    }
+
+    // C. Record observation and calculate usage since previous report
+    await _bundleRepo.recordObservation(
+      bundleId: bundleId,
+      remainingAllowance: telecomResult.remainingAllowance,
+      unit: telecomResult.unit,
+      sourceMessage: rawMessage,
+      timestamp: timestamp,
+    );
+
+    // D. Log Ingestion
+    await _logIngestion(
+      sender: sender,
+      snippet: sanitizedSnippet,
+      status: telecomResult.isPurchase ? 'telecom_purchase' : 'telecom_balance_update',
+      amount: telecomResult.purchasePriceSantims,
+      confidence: telecomResult.confidenceScore,
+    );
+
+    return IngestionResponse(
+      success: true,
+      isTelecomUpdate: true,
+      message: telecomResult.isPurchase
+          ? 'Recorded bundle purchase: ${telecomResult.bundleName}'
+          : 'Updated remaining allowance: ${telecomResult.remainingAllowance} ${telecomResult.unit}',
+      transaction: tx,
+      telecomResult: telecomResult,
     );
   }
 
@@ -259,7 +403,10 @@ class IngestionService {
 
   Future<String> _resolveAccountId(String? sender, String institution) async {
     final s = (sender ?? institution).toLowerCase();
-    if (s.contains('telebirr') || s.contains('ቴሌብር')) {
+    if (s.contains('mpesa') || s.contains('safaricom') || s.contains('700') || s.contains('ሳፋሪኮም')) {
+      return 'acc_mpesa';
+    }
+    if (s.contains('telebirr') || s.contains('ቴሌብር') || s.contains('ethio telecom') || s.contains('994') || s.contains('127')) {
       return 'acc_telebirr';
     }
     if (s.contains('abyssinia') || s.contains('boa') || s.contains('አቢሲኒያ')) {
@@ -308,7 +455,12 @@ class IngestionService {
         m.contains('water') ||
         m.contains('utility') ||
         m.contains('dstv') ||
-        m.contains('internet')) {
+        m.contains('internet') ||
+        m.contains('bundle') ||
+        m.contains('telecom') ||
+        m.contains('safaricom') ||
+        m.contains('ethio telecom') ||
+        m.contains('ፓኬጅ')) {
       return 'cat_utilities';
     }
     if (m.contains('airtime') || m.contains('fee') || m.contains('service charge')) {

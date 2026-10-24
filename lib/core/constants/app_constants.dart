@@ -3,7 +3,11 @@ class AppConstants {
   static const String defaultCurrency = 'ETB';
   static const String appGroupIdentifier = 'group.com.ledgerleaf.app';
   static const String databaseName = 'ledgerleaf.db';
-  static const int databaseVersion = 1;
+  static const int databaseVersion = 2; // Incremented for Telecom Bundles & Safaricom M-PESA
+
+  // Timezone
+  static const String localTimezone = 'Africa/Addis_Ababa';
+  static const int eatTimezoneOffsetMinutes = 180; // UTC+3
 
   // Transaction Types
   static const String typeExpense = 'expense';
@@ -35,6 +39,19 @@ class AppConstants {
   static const String accountTypeMobileMoney = 'mobile_money';
   static const String accountTypeCash = 'cash';
   static const String accountTypeOther = 'other';
+
+  // Telecom Providers
+  static const String providerEthioTelecom = 'Ethio telecom';
+  static const String providerSafaricom = 'Safaricom Ethiopia';
+
+  // Telecom Bundle Categories
+  static const String bundleCategoryData = 'data';
+  static const String bundleCategoryVoice = 'voice';
+  static const String bundleCategorySms = 'sms';
+  static const String bundleCategoryCombo = 'combo';
+  static const String bundleCategoryNightData = 'night_data';
+  static const String bundleCategorySocial = 'social';
+  static const String bundleCategoryUnlimited = 'unlimited';
 
   // Settings Keys
   static const String keyCurrency = 'currency';

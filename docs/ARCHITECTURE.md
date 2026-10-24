@@ -130,3 +130,45 @@ If a message lacks a unique bank reference, a 10-minute sliding window check pre
 3. **Dual Persistence Mechanism:**
    - **Direct SQLite:** The native intent connects to `ledgerleaf.db` in the App Group and inserts the transaction directly.
    - **Ingestion Event Queue:** If SQLite is locked or inaccessible, the intent writes the raw payload into an append-only JSON queue (`ingestion_queue.json`) in the App Group directory. When Flutter opens or resumes, it drains and processes any queued records.
+
+---
+
+## 5. UI Architecture & Reference Redesign (ui.jpg)
+
+### 5.1 Visual Language & Aesthetic
+- **Palette:**
+  - Hero & Brand: Dark Forest Green (`#1B3B2B`, `#1A382A`)
+  - Light Accents & Badges: Sage Green Pill (`#E8F3EC`), Sage Text (`#235839`)
+  - Expenses & Warnings: Terracotta Clay (`#BA4A38`, `#FDECE9`)
+  - Backgrounds & Cards: Warm Off-White (`#F8F7F2`), Pure Card White (`#FFFFFF`)
+  - Borders & Dividers: Subtle Mineral Border (`#E8E6DE`)
+  - Typography: Deep Charcoal (`#191A18`), Muted Secondary (`#75736B`)
+- **Navigation Shell:** 5 dedicated destinations:
+  1. **Home (`DashboardScreen`):** Dark forest green hero card (`ETB 12,780.50`, in/out flow), horizontally scrolling linked account cards, telecom summary card, and recent activity list with timestamp footnotes.
+  2. **Transactions (`TransactionsScreen`):** Search bar, filter modal, quick filter chips (`All`, `Money in`, `Money out`), monthly summary card (`Money in`, `Money out`), and date-grouped headers (`TODAY · OCT 24`, `YESTERDAY · OCT 23`, `EARLIER THIS MONTH`).
+  3. **Accounts (`AccountsScreen`):** Total across all accounts, expandable account cards featuring `[💬 SMS linked]` or `[✎ Manual]` badges, available balances, currency details, balance sources, and direct links to account transactions.
+  4. **SMS Import (`SmsImportScreen`):** Privacy card ("Only what you choose to share"), Apple Shortcuts status card (`• Connected`), 4-step setup guide with "Open Shortcuts ↗" link, "Test with sample SMS" interactive simulator, and pending review queue.
+  5. **Bundles (`BundlesScreen`):** Ethio telecom & Safaricom Ethiopia package tracking, remaining allowances, validity countdowns, and historical usage consumption logs.
+
+---
+
+## 6. Ethiopian Telecom & Mobile Money Architecture
+
+### 6.1 Supported Financial & Telecom Providers
+1. **Commercial Bank of Ethiopia (CBE):** Debit/credit notifications from sender `127` or `CBE`.
+2. **Bank of Abyssinia (BOA):** P2P and merchant debit/credits.
+3. **Dashen Bank / Amole:** Debit, credit, and P2P transfers.
+4. **Telebirr:** Mobile money transfers, merchant checkout, cash-in/out, and airtime.
+5. **Safaricom M-PESA:** Transfers, merchant till payments, airtime, and balance updates (`MpesaParser`).
+6. **Ethio telecom (`EthioTelecomParser`):** 994/127 bundle purchases, `*804#` balance inquiries, and Amharic packages.
+7. **Safaricom Ethiopia (`SafaricomTelecomParser`):** Bundle purchases, `*704#` balance inquiries, and All-in-One packages.
+
+### 6.2 Telecom Data Model & Usage Calculation
+- **`telecom_bundles` Table:** Tracks active packages (ID, provider, bundle name, category, original allowance, remaining allowance, unit, validity/expiry, purchase price).
+- **`telecom_observations` Table:** Time-series records of remaining balance reports.
+- **Consumption Engine:**
+  - Usage between report $t_1$ and $t_2$ is calculated as $\Delta = \text{Remaining}(t_1) - \text{Remaining}(t_2)$ when $\text{Remaining}(t_2) < \text{Remaining}(t_1)$.
+  - When $\text{Remaining}(t_2) > \text{Remaining}(t_1)$ (package renewed or bonus added), usage is recorded as `0.0` rather than negative consumption.
+- **Anti-Double-Counting Guard:**
+  - Bundle purchase messages with an explicit price (e.g. `ETB 300.00`) create both a financial expense transaction and a bundle record.
+  - Bundle balance inquiries (e.g. `*804#`, `*704#`) update remaining allowances and observation history, but NEVER create a financial transaction.

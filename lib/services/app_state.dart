@@ -4,11 +4,13 @@ import '../core/constants/app_constants.dart';
 import '../data/csv/csv_service.dart';
 import '../data/database/database_helper.dart';
 import '../data/repositories/account_repository.dart';
+import '../data/repositories/bundle_repository.dart';
 import '../data/repositories/category_repository.dart';
 import '../data/repositories/settings_repository.dart';
 import '../data/repositories/transaction_repository.dart';
 import '../domain/models/account_model.dart';
 import '../domain/models/budget_summary.dart';
+import '../domain/models/bundle_model.dart';
 import '../domain/models/category_model.dart';
 import '../domain/models/filter_criteria.dart';
 import '../domain/models/transaction_model.dart';
@@ -18,6 +20,7 @@ class AppState extends ChangeNotifier {
   final TransactionRepository _transactionRepo;
   final AccountRepository _accountRepo;
   final CategoryRepository _categoryRepo;
+  final BundleRepository _bundleRepo;
   final SettingsRepository _settingsRepo;
   final IngestionService _ingestionService;
   final CsvService _csvService;
@@ -27,6 +30,7 @@ class AppState extends ChangeNotifier {
     TransactionRepository? transactionRepo,
     AccountRepository? accountRepo,
     CategoryRepository? categoryRepo,
+    BundleRepository? bundleRepo,
     SettingsRepository? settingsRepo,
     IngestionService? ingestionService,
     CsvService? csvService,
@@ -35,6 +39,7 @@ class AppState extends ChangeNotifier {
         _transactionRepo = transactionRepo ?? TransactionRepository(),
         _accountRepo = accountRepo ?? AccountRepository(),
         _categoryRepo = categoryRepo ?? CategoryRepository(),
+        _bundleRepo = bundleRepo ?? BundleRepository(),
         _settingsRepo = settingsRepo ?? SettingsRepository(),
         _csvService = csvService ?? CsvService(),
         _ingestionService = ingestionService ?? IngestionService();
@@ -56,6 +61,8 @@ class AppState extends ChangeNotifier {
   FinancialDashboardSummary _dashboardSummary = FinancialDashboardSummary.empty;
   FinancialDashboardSummary get dashboardSummary => _dashboardSummary;
 
+  int get totalBalanceSantims => _accounts.fold<int>(0, (sum, acc) => sum + acc.balanceSantims);
+
   List<TransactionModel> _transactions = [];
   List<TransactionModel> get transactions => _transactions;
 
@@ -70,6 +77,14 @@ class AppState extends ChangeNotifier {
 
   FilterCriteria _filterCriteria = const FilterCriteria();
   FilterCriteria get filterCriteria => _filterCriteria;
+
+  TelecomSummary _telecomSummary = TelecomSummary.empty;
+  TelecomSummary get telecomSummary => _telecomSummary;
+
+  List<TelecomBundleModel> _bundles = [];
+  List<TelecomBundleModel> get bundles => _bundles;
+
+  BundleRepository get bundleRepo => _bundleRepo;
 
   Future<void> initialize() async {
     _isLoading = true;
@@ -102,6 +117,8 @@ class AppState extends ChangeNotifier {
       startDate: _startDate,
       endDate: _endDate,
     );
+    _bundles = await _bundleRepo.getAllBundles();
+    _telecomSummary = await _bundleRepo.getTelecomSummary();
     notifyListeners();
   }
 
@@ -165,6 +182,23 @@ class AppState extends ChangeNotifier {
     );
     await reloadAll();
     return response;
+  }
+
+  Future<void> recordTelecomObservation({
+    required String bundleId,
+    required double remainingAllowance,
+    required String unit,
+    required String sourceMessage,
+    DateTime? timestamp,
+  }) async {
+    await _bundleRepo.recordObservation(
+      bundleId: bundleId,
+      remainingAllowance: remainingAllowance,
+      unit: unit,
+      sourceMessage: sourceMessage,
+      timestamp: timestamp,
+    );
+    await reloadAll();
   }
 
   Future<String> exportCsv() => _csvService.exportTransactionsToCsv();

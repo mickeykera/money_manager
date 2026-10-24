@@ -4,6 +4,7 @@ import 'cbe_parser.dart';
 import 'dashen_parser.dart';
 import 'generic_parser.dart';
 import 'models/parse_result.dart';
+import 'mpesa_parser.dart';
 import 'otp_filter.dart';
 import 'telebirr_parser.dart';
 
@@ -15,6 +16,7 @@ class ParserEngine {
             [
               CbeParser(),
               TelebirrParser(),
+              MpesaParser(),
               AbyssiniaParser(),
               DashenParser(),
               GenericBankParser(),

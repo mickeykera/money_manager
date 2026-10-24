@@ -7,7 +7,7 @@ import 'core/constants/app_constants.dart';
 import 'core/theme/app_theme.dart';
 import 'data/database/database_helper.dart';
 import 'data/repositories/settings_repository.dart';
-import 'presentation/screens/dashboard_screen.dart';
+import 'presentation/screens/main_navigation_shell.dart';
 import 'presentation/screens/onboarding_screen.dart';
 import 'services/app_state.dart';
 import 'services/native_bridge.dart';
@@ -81,7 +81,7 @@ class _LedgerLeafAppState extends State<LedgerLeafApp> {
           darkTheme: AppTheme.darkTheme,
           themeMode: widget.appState.themeMode,
           home: _onboardingCompleted
-              ? DashboardScreen(appState: widget.appState)
+              ? MainNavigationShell(appState: widget.appState)
               : OnboardingScreen(onFinish: _finishOnboarding),
         );
       },

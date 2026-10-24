@@ -7,6 +7,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../domain/models/account_model.dart';
+import '../../domain/models/bundle_model.dart';
 import '../../domain/models/category_model.dart';
 
 class DatabaseHelper {
@@ -28,7 +29,6 @@ class DatabaseHelper {
   }
 
   Future<Database> _initDatabase() async {
-    // If on Linux/Windows/Mac desktop without standard sqflite runner, use FFI
     if (kIsWeb) {
       throw UnsupportedError('Web is not supported');
     }
@@ -48,7 +48,6 @@ class DatabaseHelper {
       dbPath,
       version: AppConstants.databaseVersion,
       onConfigure: (db) async {
-        // Enable WAL mode and busy timeout for concurrent native & Flutter access
         await db.execute('PRAGMA journal_mode = WAL;');
         await db.execute('PRAGMA busy_timeout = 5000;');
         await db.execute('PRAGMA foreign_keys = ON;');
@@ -58,7 +57,28 @@ class DatabaseHelper {
         await _seedDefaultData(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
-        // Migration logic for future versions
+        if (oldVersion < 2) {
+          // Migration to v2: Add telecom bundles and observations
+          await _createTelecomTables(db);
+          try {
+            await db.execute('ALTER TABLE accounts ADD COLUMN is_sms_linked INTEGER NOT NULL DEFAULT 1;');
+            await db.execute('ALTER TABLE accounts ADD COLUMN balance_source TEXT NOT NULL DEFAULT "Latest imported SMS";');
+          } catch (_) {}
+          // Add M-PESA account if not present
+          final now = DateTime.now().millisecondsSinceEpoch;
+          await db.insert('accounts', {
+            'id': 'acc_mpesa',
+            'name': 'Safaricom M-PESA',
+            'type': AppConstants.accountTypeMobileMoney,
+            'balance_santims': 0,
+            'currency': AppConstants.defaultCurrency,
+            'account_number_masked': '07****5678',
+            'is_sms_linked': 1,
+            'balance_source': 'Latest imported SMS',
+            'created_at': now,
+            'updated_at': now,
+          });
+        }
       },
     );
 
@@ -66,8 +86,6 @@ class DatabaseHelper {
   }
 
   Future<String> _getDatabasePath() async {
-    // On iOS, if App Group path is available, use it. Otherwise, use application documents directory.
-    // For standard Flutter execution, application documents directory is safe.
     final directory = await getApplicationDocumentsDirectory();
     return p.join(directory.path, AppConstants.databaseName);
   }
@@ -81,6 +99,8 @@ class DatabaseHelper {
         balance_santims INTEGER NOT NULL DEFAULT 0,
         currency TEXT NOT NULL DEFAULT 'ETB',
         account_number_masked TEXT,
+        is_sms_linked INTEGER NOT NULL DEFAULT 1,
+        balance_source TEXT NOT NULL DEFAULT 'Latest imported SMS',
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
@@ -159,12 +179,57 @@ class DatabaseHelper {
         value TEXT NOT NULL
       );
     ''');
+
+    await _createTelecomTables(db);
+  }
+
+  Future<void> _createTelecomTables(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS telecom_bundles (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL,
+        bundle_name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        original_allowance REAL NOT NULL,
+        remaining_allowance REAL NOT NULL,
+        unit TEXT NOT NULL,
+        activation_time INTEGER,
+        expiry_time INTEGER,
+        purchase_price_santims INTEGER,
+        linked_transaction_id TEXT,
+        source_message TEXT,
+        source_fingerprint TEXT,
+        last_confirmed_time INTEGER NOT NULL,
+        confidence_score REAL NOT NULL DEFAULT 1.0,
+        status TEXT NOT NULL DEFAULT 'active'
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS telecom_observations (
+        id TEXT PRIMARY KEY,
+        bundle_id TEXT NOT NULL,
+        timestamp INTEGER NOT NULL,
+        remaining_allowance REAL NOT NULL,
+        unit TEXT NOT NULL,
+        estimated_usage REAL,
+        source_message TEXT NOT NULL,
+        FOREIGN KEY (bundle_id) REFERENCES telecom_bundles (id) ON DELETE CASCADE
+      );
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_telecom_bundles_provider ON telecom_bundles (provider);
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_telecom_observations_bundle ON telecom_observations (bundle_id);
+    ''');
   }
 
   Future<void> _seedDefaultData(DatabaseExecutor db) async {
     final now = DateTime.now().millisecondsSinceEpoch;
 
-    // Default Accounts
+    // Default Ethiopian Accounts
     final accounts = [
       AccountModel(
         id: 'acc_cbe',
@@ -173,6 +238,8 @@ class DatabaseHelper {
         balanceSantims: 0,
         currency: AppConstants.defaultCurrency,
         accountNumberMasked: '1000****0001',
+        isSmsLinked: true,
+        balanceSource: 'Latest imported SMS',
         createdAt: DateTime.fromMillisecondsSinceEpoch(now),
         updatedAt: DateTime.fromMillisecondsSinceEpoch(now),
       ),
@@ -183,6 +250,20 @@ class DatabaseHelper {
         balanceSantims: 0,
         currency: AppConstants.defaultCurrency,
         accountNumberMasked: '09****1234',
+        isSmsLinked: true,
+        balanceSource: 'Latest imported SMS',
+        createdAt: DateTime.fromMillisecondsSinceEpoch(now),
+        updatedAt: DateTime.fromMillisecondsSinceEpoch(now),
+      ),
+      AccountModel(
+        id: 'acc_mpesa',
+        name: 'Safaricom M-PESA',
+        type: AppConstants.accountTypeMobileMoney,
+        balanceSantims: 0,
+        currency: AppConstants.defaultCurrency,
+        accountNumberMasked: '07****5678',
+        isSmsLinked: true,
+        balanceSource: 'Latest imported SMS',
         createdAt: DateTime.fromMillisecondsSinceEpoch(now),
         updatedAt: DateTime.fromMillisecondsSinceEpoch(now),
       ),
@@ -193,6 +274,8 @@ class DatabaseHelper {
         balanceSantims: 0,
         currency: AppConstants.defaultCurrency,
         accountNumberMasked: 'BOA****0002',
+        isSmsLinked: true,
+        balanceSource: 'Latest imported SMS',
         createdAt: DateTime.fromMillisecondsSinceEpoch(now),
         updatedAt: DateTime.fromMillisecondsSinceEpoch(now),
       ),
@@ -202,6 +285,8 @@ class DatabaseHelper {
         type: AppConstants.accountTypeCash,
         balanceSantims: 0,
         currency: AppConstants.defaultCurrency,
+        isSmsLinked: false,
+        balanceSource: 'Manual entry',
         createdAt: DateTime.fromMillisecondsSinceEpoch(now),
         updatedAt: DateTime.fromMillisecondsSinceEpoch(now),
       ),
@@ -228,6 +313,15 @@ class DatabaseHelper {
         iconCodePoint: Icons.directions_car.codePoint,
         colorValue: 0xFF3D5A80,
         monthlyBudgetSantims: 500000, // 5,000 ETB
+        isIncome: false,
+        createdAt: DateTime.fromMillisecondsSinceEpoch(now),
+      ),
+      CategoryModel(
+        id: 'cat_telecom',
+        name: 'Telecom & Internet',
+        iconCodePoint: Icons.wifi.codePoint,
+        colorValue: 0xFF2B533E,
+        monthlyBudgetSantims: 100000, // 1,000 ETB
         isIncome: false,
         createdAt: DateTime.fromMillisecondsSinceEpoch(now),
       ),
@@ -341,6 +435,36 @@ class DatabaseHelper {
     for (final entry in settings.entries) {
       await db.insert('settings', {'key': entry.key, 'value': entry.value});
     }
+
+    // Seed realistic sample active bundle for immediate preview
+    final expiry = DateTime.now().add(const Duration(days: 20));
+    final sampleBundle = TelecomBundleModel(
+      id: 'bundle_ethio_sample',
+      provider: AppConstants.providerEthioTelecom,
+      bundleName: 'Monthly 10GB Data Package',
+      category: AppConstants.bundleCategoryData,
+      originalAllowance: 10.0,
+      remainingAllowance: 7.20,
+      unit: 'GB',
+      activationTime: DateTime.now().subtract(const Duration(days: 10)),
+      expiryTime: expiry,
+      purchasePriceSantims: 30000, // 300 ETB
+      lastConfirmedTime: DateTime.now(),
+      status: 'active',
+      sourceMessage: 'Dear customer, your remaining data balance is 7.20 GB valid until ${expiry.toIso8601String().substring(0, 10)}.',
+    );
+    await db.insert('telecom_bundles', sampleBundle.toMap());
+
+    final sampleObs = BundleObservationModel(
+      id: 'obs_sample_1',
+      bundleId: 'bundle_ethio_sample',
+      timestamp: DateTime.now().subtract(const Duration(hours: 4)),
+      remainingAllowance: 7.20,
+      unit: 'GB',
+      estimatedUsageSincePrevious: 0.80,
+      sourceMessage: sampleBundle.sourceMessage ?? '',
+    );
+    await db.insert('telecom_observations', sampleObs.toMap());
   }
 
   /// Wipe all data and re-seed
@@ -349,6 +473,8 @@ class DatabaseHelper {
     await db.transaction((txn) async {
       await txn.delete('transactions');
       await txn.delete('ingestion_logs');
+      await txn.delete('telecom_observations');
+      await txn.delete('telecom_bundles');
       await txn.delete('categories');
       await txn.delete('accounts');
       await txn.delete('settings');
