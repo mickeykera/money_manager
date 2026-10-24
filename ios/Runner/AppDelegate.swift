@@ -19,7 +19,7 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-    setupAutomationChannel(messenger: engineBridge.applicationRegistrar.messenger)
+    setupAutomationChannel(messenger: engineBridge.applicationRegistrar.messenger())
   }
 
   private func setupAutomationChannel(messenger: FlutterBinaryMessenger) {
