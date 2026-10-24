@@ -488,6 +488,26 @@ class DatabaseHelper {
     });
   }
 
+  /// Completely deletes the local database file (including WAL and SHM journals)
+  /// and recreates a fresh database instance from scratch.
+  Future<void> wipeAndRecreateDatabase() async {
+    await close();
+    final dbPath = await _getDatabasePath();
+    final file = File(dbPath);
+    if (await file.exists()) {
+      await file.delete();
+    }
+    final walFile = File('$dbPath-wal');
+    if (await walFile.exists()) {
+      await walFile.delete();
+    }
+    final shmFile = File('$dbPath-shm');
+    if (await shmFile.exists()) {
+      await shmFile.delete();
+    }
+    _db = await _initDatabase();
+  }
+
   Future<void> close() async {
     if (_db != null && _db!.isOpen) {
       await _db!.close();
