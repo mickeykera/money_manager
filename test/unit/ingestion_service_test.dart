@@ -1,17 +1,12 @@
-import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ledgerleaf/core/constants/app_constants.dart';
 import 'package:ledgerleaf/data/database/database_helper.dart';
 import 'package:ledgerleaf/data/repositories/account_repository.dart';
-import 'package:ledgerleaf/data/repositories/category_repository.dart';
 import 'package:ledgerleaf/data/repositories/settings_repository.dart';
 import 'package:ledgerleaf/data/repositories/transaction_repository.dart';
 import 'package:ledgerleaf/domain/models/filter_criteria.dart';
 import 'package:ledgerleaf/parser/parser_engine.dart';
-import 'package:ledgerleaf/services/app_state.dart';
 import 'package:ledgerleaf/services/ingestion_service.dart';
-import 'package:ledgerleaf/services/native_bridge.dart';
-import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
@@ -25,7 +20,6 @@ void main() {
     late DatabaseHelper dbHelper;
     late TransactionRepository txRepo;
     late AccountRepository accountRepo;
-    late CategoryRepository categoryRepo;
     late SettingsRepository settingsRepo;
     late IngestionService ingestionService;
 
@@ -168,7 +162,6 @@ void main() {
 
       txRepo = TransactionRepository(dbHelper: dbHelper);
       accountRepo = AccountRepository(dbHelper: dbHelper);
-      categoryRepo = CategoryRepository(dbHelper: dbHelper);
       settingsRepo = SettingsRepository(dbHelper: dbHelper);
 
       ingestionService = IngestionService(
