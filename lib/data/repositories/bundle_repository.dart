@@ -97,6 +97,16 @@ class BundleRepository {
           estimatedUsage = 0.0;
         }
       }
+    } else {
+      // First observation: compare against parent bundle's original allowance
+      final bundle = await getBundleById(bundleId);
+      if (bundle != null && bundle.unit == unit) {
+        if (remainingAllowance < bundle.originalAllowance) {
+          estimatedUsage = double.parse((bundle.originalAllowance - remainingAllowance).toStringAsFixed(3));
+        } else {
+          estimatedUsage = null;
+        }
+      }
     }
 
     const uuid = Uuid();

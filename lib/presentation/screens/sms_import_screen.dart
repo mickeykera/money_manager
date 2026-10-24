@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/app_state.dart';
 import 'transaction_detail_screen.dart';
@@ -320,38 +322,65 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                       ),
                     ),
                     const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.greenAccentPill,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.circle, size: 8, color: AppColors.forestGreen),
-                          SizedBox(width: 5),
-                          Text(
-                            'Connected',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.forestGreen,
-                            ),
+                    Builder(
+                      builder: (context) {
+                        final smsTransactions = appState.transactions.where((tx) => tx.source == AppConstants.sourceSms).toList();
+                        final hasImportedSms = smsTransactions.isNotEmpty;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: hasImportedSms ? AppColors.greenAccentPill : const Color(0xFFF3F2EC),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                        ],
-                      ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.circle,
+                                size: 8,
+                                color: hasImportedSms ? AppColors.forestGreen : AppColors.textMuted,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                hasImportedSms ? 'Active Automation' : 'Ready to Connect',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: hasImportedSms ? AppColors.forestGreen : AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                Text(
-                  'CBE · Telebirr · Safaricom M-PESA\nLatest message processed securely on-device',
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.4,
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-                  ),
+                Builder(
+                  builder: (context) {
+                    final smsTransactions = appState.transactions.where((tx) => tx.source == AppConstants.sourceSms).toList();
+                    final hasImportedSms = smsTransactions.isNotEmpty;
+                    if (hasImportedSms) {
+                      final lastTime = DateFormat('MMM d, h:mm a').format(smsTransactions.first.timestamp);
+                      return Text(
+                        'Last automated alert: $lastTime\nProcessed on-device with zero cloud telemetry',
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.4,
+                          color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                        ),
+                      );
+                    }
+                    return Text(
+                      'Awaiting personal automation configuration in Shortcuts app.\nUse "Test with sample SMS" below to simulate local parsing.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

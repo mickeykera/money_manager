@@ -278,7 +278,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   const SizedBox(height: 12),
                   _buildDetailRow(
                     label: 'Balance source',
-                    value: acc.balanceSource,
+                    value: (acc.isSmsLinked && acc.balanceSantims == 0)
+                        ? 'Awaiting first SMS alert'
+                        : acc.balanceSource,
                     isDark: isDark,
                   ),
                   const SizedBox(height: 12),

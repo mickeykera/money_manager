@@ -14,18 +14,40 @@ class CbeParser extends BaseParser {
     if (sender != null) {
       final s = sender.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
       if (s == 'cbe' || s == '127' || s == 'cbebirr') return true;
+      if (s == 'dashen' || s == 'boa' || s == 'abyssinia' || s == 'telebirr' || s == 'mpesa' || s == 'safaricom' || s == '700') {
+        return false;
+      }
     }
     final lower = message.toLowerCase();
     return lower.contains('cbe') ||
         lower.contains('commercial bank of ethiopia') ||
-        lower.contains('የኢትዮጵያ ንግድ ባንክ') ||
-        (lower.contains('account') && lower.contains('debited with') && message.contains('ETB'));
+        lower.contains('የኢትዮጵያ ንግድ ባንክ');
   }
 
   @override
   ParseResult parse(String message, String? sender) {
     final filterResult = checkCommonFilters(message);
     if (filterResult != null) return filterResult;
+
+    final lower = message.toLowerCase();
+
+    // Pure balance alert without transaction
+    if ((lower.contains('balance is') || lower.contains('current balance') || lower.contains('ቀሪ ሂሳብ')) &&
+        !lower.contains('debited') &&
+        !lower.contains('credited') &&
+        !lower.contains('ወጪ') &&
+        !lower.contains('ገቢ') &&
+        !lower.contains('transferred') &&
+        !lower.contains('withdrawn')) {
+      final bal = extractBalance(message);
+      return ParseResult(
+        status: ParseStatus.rejectedNonFinancial,
+        institution: institutionName,
+        balanceSantims: bal,
+        failureReason: 'Pure balance notification without transaction charge',
+        rawMessage: message,
+      );
+    }
 
     final type = detectType(message);
     final isCredit = type == AppConstants.typeIncome;

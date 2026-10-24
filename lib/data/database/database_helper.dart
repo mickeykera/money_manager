@@ -62,22 +62,28 @@ class DatabaseHelper {
           await _createTelecomTables(db);
           try {
             await db.execute('ALTER TABLE accounts ADD COLUMN is_sms_linked INTEGER NOT NULL DEFAULT 1;');
-            await db.execute('ALTER TABLE accounts ADD COLUMN balance_source TEXT NOT NULL DEFAULT "Latest imported SMS";');
+          } catch (_) {}
+          try {
+            await db.execute("ALTER TABLE accounts ADD COLUMN balance_source TEXT NOT NULL DEFAULT 'Latest imported SMS';");
           } catch (_) {}
           // Add M-PESA account if not present
           final now = DateTime.now().millisecondsSinceEpoch;
-          await db.insert('accounts', {
-            'id': 'acc_mpesa',
-            'name': 'Safaricom M-PESA',
-            'type': AppConstants.accountTypeMobileMoney,
-            'balance_santims': 0,
-            'currency': AppConstants.defaultCurrency,
-            'account_number_masked': '07****5678',
-            'is_sms_linked': 1,
-            'balance_source': 'Latest imported SMS',
-            'created_at': now,
-            'updated_at': now,
-          });
+          await db.insert(
+            'accounts',
+            {
+              'id': 'acc_mpesa',
+              'name': 'Safaricom M-PESA',
+              'type': AppConstants.accountTypeMobileMoney,
+              'balance_santims': 0,
+              'currency': AppConstants.defaultCurrency,
+              'account_number_masked': '07****5678',
+              'is_sms_linked': 1,
+              'balance_source': 'Latest imported SMS',
+              'created_at': now,
+              'updated_at': now,
+            },
+            conflictAlgorithm: ConflictAlgorithm.ignore,
+          );
         }
       },
     );
@@ -441,7 +447,7 @@ class DatabaseHelper {
     final sampleBundle = TelecomBundleModel(
       id: 'bundle_ethio_sample',
       provider: AppConstants.providerEthioTelecom,
-      bundleName: 'Monthly 10GB Data Package',
+      bundleName: '[Sample Preview] Monthly 10GB Data',
       category: AppConstants.bundleCategoryData,
       originalAllowance: 10.0,
       remainingAllowance: 7.20,
@@ -451,7 +457,7 @@ class DatabaseHelper {
       purchasePriceSantims: 30000, // 300 ETB
       lastConfirmedTime: DateTime.now(),
       status: 'active',
-      sourceMessage: 'Dear customer, your remaining data balance is 7.20 GB valid until ${expiry.toIso8601String().substring(0, 10)}.',
+      sourceMessage: '[Sample Preview] Dear customer, your remaining data balance is 7.20 GB valid until ${expiry.toIso8601String().substring(0, 10)}.',
     );
     await db.insert('telecom_bundles', sampleBundle.toMap());
 

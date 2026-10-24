@@ -375,6 +375,20 @@ class _BundlesScreenState extends State<BundlesScreen> {
                     bundle.category.toUpperCase(),
                     style: const TextStyle(fontSize: 11, color: AppColors.textMuted, fontWeight: FontWeight.w500),
                   ),
+                  if (bundle.id.contains('sample')) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF3F2EC),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'Sample Preview',
+                        style: TextStyle(fontSize: 10, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
                 ],
               ),
               Container(
