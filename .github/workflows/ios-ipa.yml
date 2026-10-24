@@ -135,12 +135,24 @@ jobs:
         run: |
           echo "Building iOS release bundle without code signing..."
           mkdir -p output
-          flutter build ios --release --no-codesign -v > build_unsigned.log 2>&1 || (cat build_unsigned.log && exit 1)
+          flutter build ios --release --no-codesign --no-tree-shake-icons -v > build_unsigned.log 2>&1 || (cat build_unsigned.log && exit 1)
 
           echo "Packaging Runner.app into standard Payload directory structure..."
           PAYLOAD_DIR="build/ios/unsigned_payload/Payload"
           mkdir -p "$PAYLOAD_DIR"
-          cp -R "build/ios/iphoneos/Runner.app" "$PAYLOAD_DIR/"
+
+          APP_PATH=$(find build/ios -type d -name "Runner.app" | grep -E "Release-iphoneos|iphoneos" | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find build/ios -type d -name "Runner.app" | head -n 1)
+          fi
+
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::Runner.app was not found in build/ios"
+            exit 1
+          fi
+
+          echo "Found compiled application bundle at: $APP_PATH"
+          cp -R "$APP_PATH" "$PAYLOAD_DIR/"
 
           cd "build/ios/unsigned_payload"
           IPA_NAME="ledgerleaf-${{ env.APP_VERSION }}-${{ env.SHORT_SHA }}-unsigned.ipa"
@@ -279,7 +291,7 @@ jobs:
         run: |
           echo "Building signed iOS application archive and exporting IPA..."
           mkdir -p output
-          flutter build ipa --release --export-options-plist="$EXPORT_PLIST" -v > build_signed.log 2>&1 || (cat build_signed.log && exit 1)
+          flutter build ipa --release --export-options-plist="$EXPORT_PLIST" --no-tree-shake-icons -v > build_signed.log 2>&1 || (cat build_signed.log && exit 1)
 
           IPA_PATH=$(find build/ios/ipa -name "*.ipa" | head -n 1)
           if [ -z "$IPA_PATH" ]; then
