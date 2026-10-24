@@ -157,10 +157,11 @@ class AppState extends ChangeNotifier {
     await reloadAll();
   }
 
-  Future<IngestionResponse> ingestSms(String message, {String? sender}) async {
+  Future<IngestionResponse> ingestSms(String message, {String? sender, DateTime? messageTime}) async {
     final response = await _ingestionService.processIncomingSms(
       rawMessage: message,
       sender: sender,
+      messageTime: messageTime,
     );
     await reloadAll();
     return response;
