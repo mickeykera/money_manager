@@ -10,6 +10,7 @@ import 'data/repositories/settings_repository.dart';
 import 'presentation/screens/dashboard_screen.dart';
 import 'presentation/screens/onboarding_screen.dart';
 import 'services/app_state.dart';
+import 'services/native_bridge.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,6 +29,10 @@ void main() async {
 
   final appState = AppState();
   await appState.initialize();
+
+  // Initialize NativeBridge and drain any background App Intent queued events
+  final nativeBridge = NativeBridge(appState);
+  await nativeBridge.drainNativeQueue();
 
   runApp(LedgerLeafApp(
     appState: appState,
