@@ -17,6 +17,7 @@ analyzer:
     - build/**
     - ios/**
     - linux/**
+    - android/**
 
 linter:
   # The lint rules applied to this project can be customized in the

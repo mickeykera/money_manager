@@ -18,6 +18,32 @@ You will need:
 
 ---
 
+## Android APK (any Android phone)
+
+The APK is built by GitHub Actions on an Ubuntu runner; see
+[`.github/workflows/android-apk.yml`](../.github/workflows/android-apk.yml).
+
+Download and install it from Linux:
+
+```bash
+./scripts/android-apk.sh            # download the latest APK
+./scripts/android-apk.sh --install  # download and adb install
+```
+
+Or download the `ledgerleaf-android-apk-<sha>` artifact from the Actions tab,
+copy the APK to the phone, and tap it. If Android blocks the install, allow
+"Install unknown apps" for your file manager or browser.
+
+The build falls back to the Android debug key when no signing secrets are set,
+which is fine for sideloading. To sign with a real key, add the
+`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and
+`ANDROID_KEY_PASSWORD` repository secrets.
+
+The SMS automation features are iOS-only; the Android app is the same offline
+expense tracker without the Shortcuts integration.
+
+---
+
 ## 2. Step-by-Step Installation via Xcode (Mac only)
 
 > For Linux, use the xtool path above; you can skip this section entirely.

@@ -47,6 +47,16 @@
 
 ---
 
+## 2b. Android APK Readiness
+
+- [x] Android platform files generated (`android/`, application ID `com.ledgerleaf.ledgerleaf`).
+- [x] Release APK built by GitHub Actions (`android-apk.yml`).
+- [ ] Install the downloaded APK on a physical Android phone (`adb install -r ...` or tap the file).
+- [ ] Confirm the dashboard, transaction entry, SMS import fixtures, and backup/restore work on Android.
+- [ ] Add `ANDROID_KEYSTORE_*` secrets before distributing outside personal sideloading.
+
+---
+
 ## 3. Physical Device Verification Gates (macOS & iPhone)
 
 - [x] Build the unsigned release IPA in GitHub Actions (`ios-sideload.yml`).

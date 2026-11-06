@@ -1,0 +1,193 @@
+name: Build Android APK
+
+# Builds a release Android APK that can be sideloaded on any phone.
+#
+# - Without Android signing secrets the APK is signed with the debug key, which
+#   is still installable after enabling "Install unknown apps" on the device.
+# - Add ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS
+#   and ANDROID_KEY_PASSWORD repository secrets to sign with your own key.
+#
+# Install the downloaded APK with:
+#
+#   adb install -r ledgerleaf-....apk
+#   # or copy it to the phone and open it
+
+on:
+  workflow_dispatch:
+    inputs:
+      flutter_version:
+        description: 'Flutter SDK version'
+        required: false
+        default: '3.47.5'
+  push:
+    branches:
+      - main
+    paths:
+      - 'lib/**'
+      - 'android/**'
+      - 'test/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/android-apk.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'lib/**'
+      - 'android/**'
+      - 'test/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/android-apk.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      FLUTTER_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.flutter_version || '3.47.5' }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Extract build metadata
+        run: |
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          APP_VERSION=$(grep '^version: ' pubspec.yaml | sed 's/version: //' | tr '+' '-')
+          echo "SHORT_SHA=$SHORT_SHA" >> "$GITHUB_ENV"
+          echo "APP_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
+          echo "Commit: $SHORT_SHA, version: $APP_VERSION"
+
+      # Optional: install a real release keystore from repository secrets.
+      - name: Configure release signing
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        run: |
+          set -euo pipefail
+          if [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is set but the keystore password, key alias or key password is missing."
+            exit 1
+          fi
+
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+          echo "Release signing configured."
+
+      - name: Build release APK
+        run: |
+          set -euo pipefail
+          flutter build apk --release > build_android.log 2>&1 || (cat build_android.log; exit 1)
+
+          APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+          if [ ! -f "$APK_PATH" ]; then
+            echo "::error::Release APK was not produced by flutter build apk"
+            find build/app/outputs -type f -name '*.apk' -print || true
+            exit 1
+          fi
+
+          if [ -f android/key.properties ]; then
+            SIGNED="signed"
+          else
+            SIGNED="unsigned"
+          fi
+
+          mkdir -p output
+          APK="output/ledgerleaf-${APP_VERSION}-${SHORT_SHA}-${SIGNED}.apk"
+          cp "$APK_PATH" "$APK"
+
+          echo "APK=$APK" >> "$GITHUB_ENV"
+          echo "APK_SIGNED=$SIGNED" >> "$GITHUB_ENV"
+          ls -lh "$APK"
+          sha256sum "$APK"
+
+      - name: Verify APK structure
+        run: |
+          set -euo pipefail
+          unzip -l "$APK" > apk-contents.txt
+          grep -q 'AndroidManifest.xml' apk-contents.txt
+          grep -q 'classes.dex' apk-contents.txt
+          grep -q 'lib/arm64-v8a/libflutter.so' apk-contents.txt
+          grep -q 'assets/flutter_assets/AssetManifest' apk-contents.txt
+          echo "APK contains the manifest, Dart code, Flutter engine and assets."
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ledgerleaf-android-apk-${{ env.SHORT_SHA }}
+          path: ${{ env.APK }}
+          if-no-files-found: error
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ledgerleaf-android-build-log-${{ env.SHORT_SHA }}
+          path: build_android.log
+          if-no-files-found: ignore
+
+      - name: Build summary
+        if: success()
+        run: |
+          {
+            echo "## LedgerLeaf Android APK"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Commit | \`${SHORT_SHA}\` |"
+            echo "| Version | ${APP_VERSION} |"
+            echo "| Signing | ${APK_SIGNED} |"
+            echo "| File | \`$(basename "$APK")\` |"
+            echo "| Size | $(du -h "$APK" | cut -f1) |"
+            echo ""
+            echo "Download the artifact \`ledgerleaf-android-apk-${SHORT_SHA}\` above."
+            echo ""
+            echo '```bash'
+            echo "# Install over USB"
+            echo "adb install -r $(basename "$APK")"
+            echo '```'
+            echo ""
+            echo "Or copy the APK to the phone, tap it, and allow installing unknown apps when prompted."
+          } >> "$GITHUB_STEP_SUMMARY"

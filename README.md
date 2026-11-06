@@ -4,6 +4,25 @@ A privacy-first, offline expense tracker for Ethiopian bank and mobile-money SMS
 messages. The Flutter UI runs entirely on-device; there is no backend, telemetry,
 or network permission.
 
+## Android APK
+
+The Android APK is built by GitHub Actions (`.github/workflows/android-apk.yml`).
+You can download the latest `ledgerleaf-android-apk-*` artifact from the
+Actions tab, or use the helper script:
+
+```bash
+# Download the latest APK
+./scripts/android-apk.sh
+
+# Download and install it over USB with adb
+./scripts/android-apk.sh --install
+```
+
+The APK is signed with the debug key unless `ANDROID_KEYSTORE_BASE64`,
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`
+repository secrets are configured. Either way it can be sideloaded after
+allowing "Install unknown apps" on the phone.
+
 ## iOS builds & sideloading
 
 The iOS IPA is built by GitHub Actions (`.github/workflows/ios-sideload.yml`).
