@@ -38,8 +38,8 @@
   - `AppShortcuts.swift` conforms to `AppShortcutsProvider`.
   - Parameters: `@Parameter(title: "Message Text")` and `@Parameter(title: "Sender")`.
 - [x] **App Group & Shared Storage:**
-  - `Runner.entitlements` defines `group.com.ledgerleaf.app`.
-  - `NativeIngestionManager.swift` manages atomic POSIX writing to `ingestion_events.json`.
+  - `Runner.entitlements` is intentionally empty for free-account sideloading; an App Group can be added for paid accounts via `IOS_APP_GROUP`.
+  - `NativeIngestionManager.swift` manages atomic writes to `ingestion_events.json`, falling back to the app Documents directory when no App Group is available.
   - `NativeBridge.dart` drains background events into local SQLite when app opens or resumes.
 - [x] **URL Scheme:**
   - `ledgerleaf://` registered in `Info.plist`.
@@ -49,12 +49,9 @@
 
 ## 3. Physical Device Verification Gates (macOS & iPhone)
 
-- [ ] Compile release build on macOS using Xcode 15+:
-  ```bash
-  flutter build ipa --no-codesign
-  ```
-- [ ] Sign with personal/team developer provisioning profile.
-- [ ] Deploy to physical iPhone with Developer Mode enabled.
+- [x] Build the unsigned release IPA in GitHub Actions (`ios-sideload.yml`).
+- [ ] Sign and install with `xtool` from Linux (`./scripts/ios-sideload.sh --build`), or sign with a personal/team provisioning profile on macOS.
+- [ ] Deploy to physical iPhone with Developer Mode enabled and trust the certificate.
 - [ ] Complete 7-step Shortcuts Personal Automation setup in iOS Shortcuts app.
 - [ ] Execute Live SMS Pocket Test (Screen locked, confirmation disabled).
 - [ ] Confirm transaction is recorded on Dashboard without opening app.

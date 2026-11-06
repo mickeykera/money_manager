@@ -1,10 +1,21 @@
 # LedgerLeaf iOS IPA Build & Distribution Guide
 
-**Target Environment:** Apple iOS (iOS 16.0+ minimum, iOS 17.0+ recommended)  
-**CI/CD Engine:** GitHub Actions (`macos-14` Apple Silicon runner)  
-**Workflow File:** [`.github/workflows/ios-ipa.yml`](file:///home/michael/projects/app/money_manager/.github/workflows/ios-ipa.yml)  
+**Target Environment:** Apple iOS (iOS 16.0+ minimum, iOS 17.0+ recommended)
+
+**CI/CD Engine:** GitHub Actions (`macos-15` runner)
+
+**Workflow File:** [`.github/workflows/ios-sideload.yml`](.github/workflows/ios-sideload.yml)
+
 **Application Bundle ID:** `com.ledgerleaf.ledgerleaf` (configurable via `IOS_BUNDLE_ID`)  
-**App Group:** `group.com.ledgerleaf.app` (configurable via `IOS_APP_GROUP`)
+**App Group:** none by default; optional via `IOS_APP_GROUP` (paid accounts only)
+
+> **Installing from Linux without Windows:** see [`docs/SIDELOAD_XTOOL.md`](SIDELOAD_XTOOL.md). The short version is:
+>
+> ```bash
+> ./scripts/ios-sideload.sh --build
+> ```
+>
+> GitHub Actions builds the unsigned IPA; `xtool` signs and installs it over USB locally.
 
 ---
 
@@ -38,7 +49,7 @@ git status
 git push origin main
 ```
 
-Once pushed, GitHub Actions automatically detects `.github/workflows/ios-ipa.yml`.
+Once pushed, GitHub Actions automatically detects `.github/workflows/ios-sideload.yml`.
 
 ---
 
@@ -48,10 +59,10 @@ You can trigger builds manually at any time:
 
 1. Navigate to your repository on GitHub.
 2. Click on the **Actions** tab at the top.
-3. In the left sidebar, select **Build LedgerLeaf iOS IPA**.
+3. In the left sidebar, select **Build iOS Sideload IPA**.
 4. Click the **Run workflow** dropdown on the right:
    - **Branch:** Select `main` (or your feature branch).
-   - **Build distribution type:**
+   - **Build type:**
      - Select `unsigned` (default) for inspection or local re-signing.
      - Select `signed` for a device-ready IPA (requires configured secrets).
    - **Export method:** `development` (recommended for personal sideloading) or `ad-hoc`.
@@ -227,5 +238,5 @@ Automatic transaction capture is now active!
 | `Provisioning profile doesn't include the com.apple.security.application-groups entitlement` | The App ID on Apple Developer Portal does not have the App Group capability enabled | In Apple Developer Portal, add App Groups to the App ID, recreate the provisioning profile, and update `IOS_PROVISIONING_PROFILE_BASE64`. |
 | `Device is not included in the provisioning profile` | The physical iPhone's UDID was not added to the profile | Register the iPhone UDID under Devices in Apple Developer Portal and regenerate the profile. |
 | `Code signing is required for product type 'Application'` | `xcodebuild` attempted to sign without an available identity | Ensure you selected `unsigned` mode if you do not have certificates configured. |
-| `Target release_ios_bundle_flutter_assets failed: Error: Avoid non-constant invocations of IconData` | Flutter icon tree shaker encountered dynamic `IconData(codePoint)` loaded from SQLite categories | Pass `--no-tree-shake-icons` to the `flutter build` command (already configured in `.github/workflows/ios-ipa.yml`). |
+| `Target release_ios_bundle_flutter_assets failed: Error: Avoid non-constant invocations of IconData` | Flutter icon tree shaker encountered dynamic `IconData(codePoint)` loaded from SQLite categories | Pass `--no-tree-shake-icons` to the `flutter build` command (already configured in `.github/workflows/ios-sideload.yml`). |
 | `Unable to install "ledgerleaf" (Untrusted Developer)` | iPhone does not trust personal developer certificate | Go to iPhone **Settings** > **General** > **VPN & Device Management** > Tap your developer certificate > **Trust**. |

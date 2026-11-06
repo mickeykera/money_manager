@@ -8,17 +8,19 @@
 
 ## 1. Prerequisites
 
-Because Apple requires proprietary Darwin toolchains, code-signing certificates, and provisioning profiles to package and install native iOS applications, **final binary compilation and signing must occur on macOS with Xcode**. All Dart domain code, deterministic parsers, and Swift App Intents are fully prepared in this repository.
+The **IPA is compiled by GitHub Actions on a macOS runner**, so you no longer need a Mac locally. To sign and install it, you can use **xtool** on Linux (recommended; see [`SIDELOAD_XTOOL.md`](SIDELOAD_XTOOL.md)) or Xcode on a Mac.
 
 You will need:
-1. An iPhone running **iOS 17.0 or newer**.
-2. A Mac computer with **Xcode 15.0 or newer** installed.
-3. An **Apple ID** (either a free personal developer account or a paid Apple Developer Program account).
-4. A USB-C or Lightning cable to connect your iPhone to your Mac.
+1. An iPhone running **iOS 16.0 or newer** (iOS 17+ recommended).
+2. Either Linux with `xtool` + `usbmuxd`, or a Mac with **Xcode 15+**.
+3. An **Apple ID** (a free personal account works; a paid Developer Program account removes the 7-day expiry).
+4. A USB-C or Lightning cable to connect your iPhone.
 
 ---
 
-## 2. Step-by-Step Installation via Xcode (Recommended)
+## 2. Step-by-Step Installation via Xcode (Mac only)
+
+> For Linux, use the xtool path above; you can skip this section entirely.
 
 ### Step 1: Clone the Repository on your Mac
 ```bash
@@ -39,8 +41,8 @@ open ios/Runner.xcworkspace
 3. Select the **Signing & Capabilities** tab.
 4. Check **Automatically manage signing**.
 5. Under **Team**, select your personal Apple ID or Developer Team.
-6. Under **Bundle Identifier**, replace `com.ledgerleaf` with a unique ID registered to your account (e.g., `com.yourname.ledgerleaf`).
-7. Under **App Groups**, select or add your custom app group identifier matching your bundle ID (e.g., `group.com.yourname.ledgerleaf`).
+6. Under **Bundle Identifier**, replace `com.ledgerleaf.ledgerleaf` with a unique ID registered to your account (e.g., `com.yourname.ledgerleaf`).
+7. **App Groups are optional.** They require a paid Developer Program account and are not needed for SMS automation because the App Intent runs in the app's own process. Leave App Groups off for a free Apple ID; adding one will make signing fail or the app crash on launch.
 
 ### Step 4: Enable Developer Mode on your iPhone
 Starting in iOS 16 and iOS 17, Apple requires Developer Mode to be enabled before sideloaded apps can launch:
@@ -61,13 +63,14 @@ Starting in iOS 16 and iOS 17, Apple requires Developer Mode to be enabled befor
 
 ---
 
-## 3. Alternative Sideloading (AltStore / Sideloadly)
+## 3. Alternative Sideloading (xtool / AltStore / Sideloadly)
 
-If you compile an unsigned `.ipa` on macOS:
+Build the unsigned IPA on GitHub Actions:
 ```bash
-flutter build ipa --no-codesign
+gh workflow run ios-sideload.yml --ref main -f build_type=unsigned
 ```
-You can sideload the generated `.ipa` using:
+Then re-sign and install it with:
+- **xtool (Linux/macOS, recommended):** `./scripts/ios-sideload.sh --build` — signs with your Apple ID and installs over USB. See [`SIDELOAD_XTOOL.md`](SIDELOAD_XTOOL.md).
 - **AltStore / AltServer:** Keeps the app active over local Wi-Fi with automatic 7-day re-signing.
 - **Sideloadly:** Sideloads directly from Windows or macOS via USB.
 - **TrollStore:** If running on a compatible iOS version with CoreTrust vulnerability, allows permanent sideloading without 7-day revocation.

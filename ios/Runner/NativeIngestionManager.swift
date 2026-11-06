@@ -2,7 +2,7 @@ import Foundation
 import CryptoKit
 
 public class NativeIngestionManager {
-    public static final let shared = NativeIngestionManager()
+    public static let shared = NativeIngestionManager()
     
     private let appGroupIdentifier = "group.com.ledgerleaf.app"
     private let eventsFileName = "ingestion_events.json"
