@@ -57,7 +57,13 @@ class NativeBridge with WidgetsBindingObserver {
           messageTime = DateTime.tryParse(rawTimestamp);
         }
 
-        if (text != null && text.isNotEmpty) {
+        if (text != null &&
+            text.isNotEmpty &&
+            (!Platform.isAndroid ||
+                AndroidSmsService.looksLikeFinancialSms(
+                  text,
+                  sender: sender,
+                ))) {
           await _appState.ingestSms(
             text,
             sender: sender,
@@ -105,6 +111,13 @@ class NativeBridge with WidgetsBindingObserver {
           }
 
           if (text != null && text.isNotEmpty) {
+            if (Platform.isAndroid &&
+                !AndroidSmsService.looksLikeFinancialSms(
+                  text,
+                  sender: sender,
+                )) {
+              continue;
+            }
             await _appState.ingestSms(
               text,
               sender: sender,

@@ -48,6 +48,25 @@ class AndroidSmsService {
 
   static bool get isSupported => !kIsWeb && Platform.isAndroid;
 
+  /// Broad financial-keyword/sender check so personal SMS never reach the
+  /// parser or its audit log. The actual parsers still decide what is a
+  /// transaction.
+  static bool looksLikeFinancialSms(String body, {String? sender}) {
+    final haystack = '${sender ?? ''}\n$body'.toLowerCase();
+    return _financialPattern.hasMatch(haystack);
+  }
+
+  static final RegExp _financialPattern = RegExp(
+    r'(\betb\b|\bbirr\b|ብር|\bdebited\b|\bcredited\b|\bpaid\b|\btransferred\b|'
+    r'\bwithdrawn\b|\bdeposit\b|\bpurchase\b|\bpurchased\b|\bbalance\b|'
+    r'\btransaction\b|\baccount\b|\btelebirr\b|\bm-?pesa\b|\bsafaricom\b|'
+    r'\bcbe\b|\babyssinia\b|\bboa\b|\bdashen\b|\bamole\b|\bbank\b|\bbundle\b|'
+    r'\bairtime\b|\btop ?up\b|\bgb\b|\bmb\b|\bminutes\b|\bactivated\b|'
+    r'\bpayment\b|\bcharged\b|\bdeducted\b|\bsms\b|\bref\b|\btxn\b|'
+    r'ተቀንሷል|ተጨምሯል|ተከፍሏል|ቀሪ|ወጪ|ገቢ)',
+    caseSensitive: false,
+  );
+
   Future<bool> hasPermission() async {
     if (!isSupported) return false;
     try {
@@ -135,6 +154,11 @@ class AndroidSmsService {
             : DateTime.fromMillisecondsSinceEpoch(dateMillis);
 
         scanned++;
+
+        if (!looksLikeFinancialSms(body, sender: sender)) {
+          ignored++;
+          continue;
+        }
 
         final response = await appState.ingestSms(
           body,
