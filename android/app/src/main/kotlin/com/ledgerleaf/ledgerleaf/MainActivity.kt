@@ -12,11 +12,16 @@ class MainActivity : FlutterActivity() {
     private val channelName = "com.ledgerleaf/automation"
     private val smsPermissionRequestCode = 4211
     private var pendingPermissionResult: MethodChannel.Result? = null
+    private var methodChannel: MethodChannel? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
+        val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
+        methodChannel = channel
+        instance = this
+
+        channel
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "hasSmsPermission" -> result.success(hasSmsPermission())
@@ -51,6 +56,12 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    override fun onDestroy() {
+        if (instance === this) instance = null
+        methodChannel = null
+        super.onDestroy()
     }
 
     private fun hasSmsPermission(): Boolean {
@@ -135,5 +146,32 @@ class MainActivity : FlutterActivity() {
         }
 
         return messages
+    }
+
+    companion object {
+        @Volatile
+        private var instance: MainActivity? = null
+
+        /**
+         * Delivers an incoming SMS to the running Flutter engine so an open app
+         * updates immediately. Returns true when the message was handed to a
+         * live engine; the receiver still persists it to the queue as a fallback.
+         */
+        fun notifySmsIngested(sender: String?, body: String, timestampMillis: Long): Boolean {
+            val activity = instance ?: return false
+            val channel = activity.methodChannel ?: return false
+
+            activity.runOnUiThread {
+                channel.invokeMethod(
+                    "onSmsIngested",
+                    mapOf(
+                        "text" to body,
+                        "sender" to sender,
+                        "timestamp" to timestampMillis,
+                    ),
+                )
+            }
+            return true
+        }
     }
 }

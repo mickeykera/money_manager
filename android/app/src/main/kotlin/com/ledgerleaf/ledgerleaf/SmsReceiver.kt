@@ -49,6 +49,10 @@ class SmsReceiver : BroadcastReceiver() {
 
             queueFile.writeText(trimmed.toString())
         }
+
+        // If LedgerLeaf is already running, update the dashboard immediately.
+        // The queue above remains the fallback for when the app is not alive.
+        MainActivity.notifySmsIngested(sender, body, timestamp)
     }
 
     private fun readQueue(file: File): JSONArray {

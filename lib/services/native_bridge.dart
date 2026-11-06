@@ -49,8 +49,20 @@ class NativeBridge with WidgetsBindingObserver {
       if (args != null) {
         final text = args['text'] as String?;
         final sender = args['sender'] as String?;
+        final rawTimestamp = args['timestamp'];
+        DateTime? messageTime;
+        if (rawTimestamp is int && rawTimestamp > 0) {
+          messageTime = DateTime.fromMillisecondsSinceEpoch(rawTimestamp);
+        } else if (rawTimestamp is String) {
+          messageTime = DateTime.tryParse(rawTimestamp);
+        }
+
         if (text != null && text.isNotEmpty) {
-          await _appState.ingestSms(text, sender: sender);
+          await _appState.ingestSms(
+            text,
+            sender: sender,
+            messageTime: messageTime,
+          );
         }
       }
     }
