@@ -51,8 +51,10 @@
 
 - [x] Android platform files generated (`android/`, application ID `com.ledgerleaf.ledgerleaf`).
 - [x] Release APK built by GitHub Actions (`android-apk.yml`).
+- [x] Android SMS import implemented (`READ_SMS` inbox scan + `SMS_RECEIVED` background queue).
 - [ ] Install the downloaded APK on a physical Android phone (`adb install -r ...` or tap the file).
-- [ ] Confirm the dashboard, transaction entry, SMS import fixtures, and backup/restore work on Android.
+- [ ] Grant SMS permission, import the inbox, and confirm bank/telecom alerts become transactions.
+- [ ] Confirm the dashboard, transaction entry, SMS import, and backup/restore work on Android.
 - [ ] Add `ANDROID_KEYSTORE_*` secrets before distributing outside personal sideloading.
 
 ---

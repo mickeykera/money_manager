@@ -3,7 +3,8 @@ class AppConstants {
   static const String defaultCurrency = 'ETB';
   static const String appGroupIdentifier = 'group.com.ledgerleaf.app';
   static const String databaseName = 'ledgerleaf.db';
-  static const int databaseVersion = 2; // Incremented for Telecom Bundles & Safaricom M-PESA
+  static const int databaseVersion =
+      2; // Incremented for Telecom Bundles & Safaricom M-PESA
 
   // Timezone
   static const String localTimezone = 'Africa/Addis_Ababa';
@@ -61,4 +62,6 @@ class AppConstants {
   static const String keyOnboardingCompleted = 'onboarding_completed';
   static const String keyAutoCategorization = 'auto_categorization';
   static const String keyThemeMode = 'theme_mode'; // 'system', 'light', 'dark'
+  static const String keyLastSmsSyncAt =
+      'last_sms_sync_at'; // epoch millis of newest imported SMS
 }

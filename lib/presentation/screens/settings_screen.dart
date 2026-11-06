@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repositories/settings_repository.dart';
+import '../../services/android_sms_service.dart';
 import '../../services/app_state.dart';
 import 'automation_setup_screen.dart';
+import 'sms_import_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final AppState appState;
@@ -28,8 +30,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _loadSettings() async {
-    final retain = await _settingsRepo.getSetting(AppConstants.keyRetainOriginalSms);
-    final retention = await _settingsRepo.getSetting(AppConstants.keySmsRetentionDays);
+    final retain = await _settingsRepo.getSetting(
+      AppConstants.keyRetainOriginalSms,
+    );
+    final retention = await _settingsRepo.getSetting(
+      AppConstants.keySmsRetentionDays,
+    );
 
     setState(() {
       _retainSms = retain != 'false';
@@ -64,7 +70,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: SingleChildScrollView(
                   child: SelectableText(
                     csv,
-                    style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                    ),
                   ),
                 ),
               ),
@@ -92,7 +101,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Paste CSV text formatted with header columns: Date, Type, Merchant, Amount...'),
+            const Text(
+              'Paste CSV text formatted with header columns: Date, Type, Merchant, Amount...',
+            ),
             const SizedBox(height: 10),
             TextField(
               controller: controller,
@@ -120,7 +131,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 }
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Successfully imported $count transactions.')),
+                    SnackBar(
+                      content: Text(
+                        'Successfully imported $count transactions.',
+                      ),
+                    ),
                   );
                 }
               }
@@ -167,12 +182,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryTextColor = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
+    final primaryTextColor = isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-      ),
+      appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
@@ -182,7 +197,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: const Text('Default Currency'),
             subtitle: const Text('Ethiopian Birr (ETB)'),
             leading: const Icon(Icons.currency_exchange),
-            trailing: const Text('ETB', style: TextStyle(fontWeight: FontWeight.bold)),
+            trailing: const Text(
+              'ETB',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
           ListTile(
             title: const Text('Theme Mode'),
@@ -191,7 +209,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               value: widget.appState.themeMode,
               underline: const SizedBox(),
               items: const [
-                DropdownMenuItem(value: ThemeMode.system, child: Text('System')),
+                DropdownMenuItem(
+                  value: ThemeMode.system,
+                  child: Text('System'),
+                ),
                 DropdownMenuItem(value: ThemeMode.light, child: Text('Light')),
                 DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark')),
               ],
@@ -214,17 +235,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSectionHeader('Privacy & Data Retention', primaryTextColor),
           SwitchListTile(
             title: const Text('Retain Original SMS'),
-            subtitle: const Text('Store raw bank SMS text locally with transaction metadata'),
+            subtitle: const Text(
+              'Store raw bank SMS text locally with transaction metadata',
+            ),
             secondary: const Icon(Icons.sms_outlined),
             value: _retainSms,
             onChanged: (val) async {
               setState(() => _retainSms = val);
-              await _settingsRepo.setSetting(AppConstants.keyRetainOriginalSms, val ? 'true' : 'false');
+              await _settingsRepo.setSetting(
+                AppConstants.keyRetainOriginalSms,
+                val ? 'true' : 'false',
+              );
             },
           ),
           ListTile(
             title: const Text('SMS Retention Period'),
-            subtitle: Text('Purge raw SMS text after $_retentionDays days (keeps transaction metadata)'),
+            subtitle: Text(
+              'Purge raw SMS text after $_retentionDays days (keeps transaction metadata)',
+            ),
             leading: const Icon(Icons.timer_outlined),
             trailing: DropdownButton<String>(
               value: _retentionDays,
@@ -238,7 +266,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onChanged: (val) async {
                 if (val != null) {
                   setState(() => _retentionDays = val);
-                  await _settingsRepo.setSetting(AppConstants.keySmsRetentionDays, val);
+                  await _settingsRepo.setSetting(
+                    AppConstants.keySmsRetentionDays,
+                    val,
+                  );
                 }
               },
             ),
@@ -246,16 +277,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const Divider(height: 24),
 
-          // iOS Shortcuts Automation Section
-          _buildSectionHeader('iOS Automation', primaryTextColor),
+          // Android SMS import / iOS Shortcuts Automation section
+          _buildSectionHeader(
+            AndroidSmsService.isSupported ? 'Android SMS' : 'iOS Automation',
+            primaryTextColor,
+          ),
           ListTile(
-            title: const Text('Shortcuts Automation Setup'),
-            subtitle: const Text('Configure personal automation for CBE, Telebirr, etc.'),
-            leading: const Icon(Icons.bolt, color: AppColors.sagePrimary),
+            title: Text(
+              AndroidSmsService.isSupported
+                  ? 'SMS Import & Permissions'
+                  : 'Shortcuts Automation Setup',
+            ),
+            subtitle: Text(
+              AndroidSmsService.isSupported
+                  ? 'Read bank and telecom alerts stored on this phone'
+                  : 'Configure personal automation for CBE, Telebirr, etc.',
+            ),
+            leading: Icon(
+              AndroidSmsService.isSupported ? Icons.sms_outlined : Icons.bolt,
+              color: AppColors.sagePrimary,
+            ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => AutomationSetupScreen(appState: widget.appState)),
+                MaterialPageRoute(
+                  builder: (_) => AndroidSmsService.isSupported
+                      ? SmsImportScreen(appState: widget.appState)
+                      : AutomationSetupScreen(appState: widget.appState),
+                ),
               );
             },
           ),
@@ -266,7 +315,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSectionHeader('Data Portability & Backup', primaryTextColor),
           ListTile(
             title: const Text('Export to CSV'),
-            subtitle: const Text('Export complete transaction ledger to standard CSV'),
+            subtitle: const Text(
+              'Export complete transaction ledger to standard CSV',
+            ),
             leading: const Icon(Icons.file_download_outlined),
             onTap: _exportCsv,
           ),
@@ -282,9 +333,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // Dangerous Zone
           _buildSectionHeader('Danger Zone', AppColors.clayPrimary),
           ListTile(
-            title: const Text('Wipe All Financial Data', style: TextStyle(color: AppColors.clayPrimary, fontWeight: FontWeight.bold)),
-            subtitle: const Text('Drop all transactions, custom categories, and logs'),
-            leading: const Icon(Icons.delete_forever, color: AppColors.clayPrimary),
+            title: const Text(
+              'Wipe All Financial Data',
+              style: TextStyle(
+                color: AppColors.clayPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            subtitle: const Text(
+              'Drop all transactions, custom categories, and logs',
+            ),
+            leading: const Icon(
+              Icons.delete_forever,
+              color: AppColors.clayPrimary,
+            ),
             onTap: _confirmWipeData,
           ),
           const SizedBox(height: 32),

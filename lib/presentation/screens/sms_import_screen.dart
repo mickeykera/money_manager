@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
+import '../../services/android_sms_service.dart';
 import '../../services/app_state.dart';
 import 'transaction_detail_screen.dart';
 
@@ -17,6 +18,79 @@ class SmsImportScreen extends StatefulWidget {
 
 class _SmsImportScreenState extends State<SmsImportScreen> {
   final TextEditingController _customSmsController = TextEditingController();
+  bool _androidPermissionGranted = false;
+  bool _isImporting = false;
+  SmsImportSummary? _lastAndroidImport;
+
+  @override
+  void initState() {
+    super.initState();
+    if (AndroidSmsService.isSupported) {
+      _refreshAndroidPermission();
+    }
+  }
+
+  @override
+  void dispose() {
+    _customSmsController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refreshAndroidPermission() async {
+    final granted = await AndroidSmsService.instance.hasPermission();
+    if (mounted) {
+      setState(() => _androidPermissionGranted = granted);
+    }
+  }
+
+  Future<void> _importAndroidSms() async {
+    if (_isImporting) return;
+    setState(() => _isImporting = true);
+
+    try {
+      var granted = _androidPermissionGranted;
+      if (!granted) {
+        granted = await AndroidSmsService.instance.requestPermission();
+      }
+      if (mounted) {
+        setState(() => _androidPermissionGranted = granted);
+      }
+
+      if (!granted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'SMS permission was not granted. Enable it in Settings > Apps > LedgerLeaf > Permissions.',
+              ),
+              backgroundColor: AppColors.expenseClay,
+            ),
+          );
+        }
+        return;
+      }
+
+      final summary = await AndroidSmsService.instance.importRecentMessages(
+        widget.appState,
+        includeAlreadySynced: false,
+      );
+      if (mounted) {
+        setState(() => _lastAndroidImport = summary);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(summary.message),
+            backgroundColor: summary.isSuccess
+                ? AppColors.forestGreen
+                : AppColors.expenseClay,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isImporting = false);
+      }
+    }
+  }
 
   void _openAppleShortcuts() {
     showDialog(
@@ -124,45 +198,58 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
-              ...sampleMessages.map((sample) => Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: AppColors.offWhiteBg,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.borderSubtle),
-                    ),
-                    child: ListTile(
-                      title: Text(
-                        sample['title']!,
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ...sampleMessages.map(
+                (sample) => Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.offWhiteBg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.borderSubtle),
+                  ),
+                  child: ListTile(
+                    title: Text(
+                      sample['title']!,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
                       ),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          sample['sms']!,
-                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        sample['sms']!,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
                         ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      trailing: const Icon(Icons.play_circle_outline, color: AppColors.forestGreen),
-                      onTap: () async {
-                        Navigator.pop(ctx);
-                        final res = await widget.appState.ingestSms(
-                          sample['sms']!,
-                          sender: sample['sender'],
-                        );
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(res.message),
-                              backgroundColor: res.success ? AppColors.forestGreen : AppColors.expenseClay,
-                            ),
-                          );
-                        }
-                      },
                     ),
-                  )),
+                    trailing: const Icon(
+                      Icons.play_circle_outline,
+                      color: AppColors.forestGreen,
+                    ),
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      final res = await widget.appState.ingestSms(
+                        sample['sms']!,
+                        sender: sample['sender'],
+                      );
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(res.message),
+                            backgroundColor: res.success
+                                ? AppColors.forestGreen
+                                : AppColors.expenseClay,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
+              ),
               const Divider(height: 28),
               const Text(
                 'Or Paste Custom SMS:',
@@ -190,7 +277,9 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(res.message),
-                          backgroundColor: res.success ? AppColors.forestGreen : AppColors.expenseClay,
+                          backgroundColor: res.success
+                              ? AppColors.forestGreen
+                              : AppColors.expenseClay,
                         ),
                       );
                     }
@@ -211,6 +300,7 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final appState = widget.appState;
     final pendingCount = appState.pendingReviewTransactions.length;
+    final isAndroid = AndroidSmsService.isSupported;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBg : AppColors.offWhiteBg,
@@ -219,7 +309,9 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.help_outline),
-            tooltip: 'Shortcuts Automation Guide',
+            tooltip: isAndroid
+                ? 'SMS import help'
+                : 'Shortcuts Automation Guide',
             onPressed: () => _showHelpDialog(context),
           ),
         ],
@@ -245,7 +337,9 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
               color: isDark ? const Color(0xFF19281E) : const Color(0xFFEFF7F1),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isDark ? const Color(0xFF2E4E39) : const Color(0xFFC7E3D0),
+                color: isDark
+                    ? const Color(0xFF2E4E39)
+                    : const Color(0xFFC7E3D0),
               ),
             ),
             child: Row(
@@ -262,20 +356,28 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Only what you choose to share',
+                        isAndroid
+                            ? 'Private by design'
+                            : 'Only what you choose to share',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: isDark ? const Color(0xFFBCE3C8) : AppColors.forestGreen,
+                          color: isDark
+                              ? const Color(0xFFBCE3C8)
+                              : AppColors.forestGreen,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'LedgerLeaf can\'t read your SMS inbox. Your personal automation forwards only matching messages.',
+                        isAndroid
+                            ? 'After you grant SMS access, LedgerLeaf reads recent bank and telecom alerts on this phone. Messages are parsed on-device and never uploaded.'
+                            : 'LedgerLeaf can\'t read your SMS inbox. Your personal automation forwards only matching messages.',
                         style: TextStyle(
                           fontSize: 12,
                           height: 1.4,
-                          color: isDark ? const Color(0xFFA2C2B0) : const Color(0xFF2F543C),
+                          color: isDark
+                              ? const Color(0xFFA2C2B0)
+                              : const Color(0xFF2F543C),
                         ),
                       ),
                     ],
@@ -286,111 +388,142 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Apple Shortcuts Status Card
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkCard : AppColors.cardWhite,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.borderSubtle),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF222F26) : const Color(0xFFE8F3EC),
-                        borderRadius: BorderRadius.circular(8),
+          // Import status card
+          if (isAndroid)
+            _buildAndroidStatusCard(isDark, appState)
+          else
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkCard : AppColors.cardWhite,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark ? AppColors.darkBorder : AppColors.borderSubtle,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF222F26)
+                              : const Color(0xFFE8F3EC),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.auto_awesome_mosaic,
+                          size: 16,
+                          color: AppColors.forestGreen,
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.auto_awesome_mosaic,
-                        size: 16,
-                        color: AppColors.forestGreen,
+                      const SizedBox(width: 10),
+                      const Text(
+                        'Apple Shortcuts',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.2,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'Apple Shortcuts',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                    const Spacer(),
-                    Builder(
-                      builder: (context) {
-                        final smsTransactions = appState.transactions.where((tx) => tx.source == AppConstants.sourceSms).toList();
-                        final hasImportedSms = smsTransactions.isNotEmpty;
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: hasImportedSms ? AppColors.greenAccentPill : const Color(0xFFF3F2EC),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.circle,
-                                size: 8,
-                                color: hasImportedSms ? AppColors.forestGreen : AppColors.textMuted,
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                hasImportedSms ? 'Active Automation' : 'Ready to Connect',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: hasImportedSms ? AppColors.forestGreen : AppColors.textSecondary,
+                      const Spacer(),
+                      Builder(
+                        builder: (context) {
+                          final smsTransactions = appState.transactions
+                              .where(
+                                (tx) => tx.source == AppConstants.sourceSms,
+                              )
+                              .toList();
+                          final hasImportedSms = smsTransactions.isNotEmpty;
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: hasImportedSms
+                                  ? AppColors.greenAccentPill
+                                  : const Color(0xFFF3F2EC),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.circle,
+                                  size: 8,
+                                  color: hasImportedSms
+                                      ? AppColors.forestGreen
+                                      : AppColors.textMuted,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 5),
+                                Text(
+                                  hasImportedSms
+                                      ? 'Active Automation'
+                                      : 'Ready to Connect',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: hasImportedSms
+                                        ? AppColors.forestGreen
+                                        : AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Builder(
+                    builder: (context) {
+                      final smsTransactions = appState.transactions
+                          .where((tx) => tx.source == AppConstants.sourceSms)
+                          .toList();
+                      final hasImportedSms = smsTransactions.isNotEmpty;
+                      if (hasImportedSms) {
+                        final lastTime = DateFormat('MMM d, h:mm a')
+                            .format(smsTransactions.first.timestamp);
+                        return Text(
+                          'Last automated alert: $lastTime\nProcessed on-device with zero cloud telemetry',
+                          style: TextStyle(
+                            fontSize: 12,
+                            height: 1.4,
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.textSecondary,
                           ),
                         );
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Builder(
-                  builder: (context) {
-                    final smsTransactions = appState.transactions.where((tx) => tx.source == AppConstants.sourceSms).toList();
-                    final hasImportedSms = smsTransactions.isNotEmpty;
-                    if (hasImportedSms) {
-                      final lastTime = DateFormat('MMM d, h:mm a').format(smsTransactions.first.timestamp);
+                      }
                       return Text(
-                        'Last automated alert: $lastTime\nProcessed on-device with zero cloud telemetry',
+                        'Awaiting personal automation configuration in Shortcuts app.\nUse "Test with sample SMS" below to simulate local parsing.',
                         style: TextStyle(
                           fontSize: 12,
                           height: 1.4,
-                          color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textSecondary,
                         ),
                       );
-                    }
-                    return Text(
-                      'Awaiting personal automation configuration in Shortcuts app.\nUse "Test with sample SMS" below to simulate local parsing.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.4,
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-                      ),
-                    );
-                  },
-                ),
-              ],
+                    },
+                  ),
+                ],
+              ),
             ),
-          ),
           const SizedBox(height: 24),
 
-          // Set up a personal automation section
-          const Text(
-            'Set up a personal automation',
-            style: TextStyle(
+          // Set up automatic import / personal automation section
+          Text(
+            isAndroid
+                ? 'Set up automatic SMS import'
+                : 'Set up a personal automation',
+            style: const TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w700,
               letterSpacing: -0.3,
@@ -398,47 +531,122 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
           ),
           const SizedBox(height: 14),
 
-          _buildStepRow(
-            number: '1',
-            title: 'Open Shortcuts → Automation',
-            body: 'Tap + to create a personal automation, then choose the Message trigger.',
-            isDark: isDark,
-          ),
-          _buildStepRow(
-            number: '2',
-            title: 'Choose which messages to share',
-            body: 'For this account, select sender 127/CBE, Telebirr, or Safaricom and Message Contains keywords.',
-            isDark: isDark,
-          ),
-          _buildStepRow(
-            number: '3',
-            title: 'Send the message to LedgerLeaf',
-            body: 'Choose New Blank Automation. Add Get Text from Shortcut Input, then LedgerLeaf → Import message.',
-            isDark: isDark,
-          ),
-          _buildStepRow(
-            number: '4',
-            title: 'Save and allow it to run',
-            body: 'Choose Run Immediately if available; otherwise confirm each run. Save, then check alerts here.',
-            isDark: isDark,
-          ),
-
-          // Link: Open Shortcuts ↗
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: _openAppleShortcuts,
-              icon: const Text(
-                'Open Shortcuts',
+          if (isAndroid) ...[
+            _buildStepRow(
+              number: '1',
+              title: 'Allow SMS access',
+              body: 'Tap "Allow SMS access & import" below. Android asks once; LedgerLeaf only reads messages after you approve.',
+              isDark: isDark,
+            ),
+            _buildStepRow(
+              number: '2',
+              title: 'Existing alerts are imported',
+              body: 'The last 90 days of bank and telecom SMS are scanned on-device and parsed into transactions.',
+              isDark: isDark,
+            ),
+            _buildStepRow(
+              number: '3',
+              title: 'New messages keep flowing',
+              body: 'Incoming SMS are queued in the background and imported the next time you open LedgerLeaf. No cloud services are used.',
+              isDark: isDark,
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.forestGreen,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 0,
+                ),
+                icon: _isImporting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.sms_outlined, size: 20),
+                label: Text(
+                  _isImporting
+                      ? 'Importing SMS...'
+                      : _androidPermissionGranted
+                      ? 'Import SMS now'
+                      : 'Allow SMS access & import',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                onPressed: _isImporting ? null : _importAndroidSms,
+              ),
+            ),
+            if (_lastAndroidImport != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _lastAndroidImport!.message,
                 style: TextStyle(
-                  color: AppColors.forestGreen,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
+                  fontSize: 12,
+                  height: 1.4,
+                  color: _lastAndroidImport!.isSuccess
+                      ? AppColors.forestGreen
+                      : AppColors.expenseClay,
                 ),
               ),
-              label: const Icon(Icons.north_east, size: 14, color: AppColors.forestGreen),
+            ],
+          ] else ...[
+            _buildStepRow(
+              number: '1',
+              title: 'Open Shortcuts → Automation',
+              body: 'Tap + to create a personal automation, then choose the Message trigger.',
+              isDark: isDark,
             ),
-          ),
+            _buildStepRow(
+              number: '2',
+              title: 'Choose which messages to share',
+              body: 'For this account, select sender 127/CBE, Telebirr, or Safaricom and Message Contains keywords.',
+              isDark: isDark,
+            ),
+            _buildStepRow(
+              number: '3',
+              title: 'Send the message to LedgerLeaf',
+              body: 'Choose New Blank Automation. Add Get Text from Shortcut Input, then LedgerLeaf → Import message.',
+              isDark: isDark,
+            ),
+            _buildStepRow(
+              number: '4',
+              title: 'Save and allow it to run',
+              body: 'Choose Run Immediately if available; otherwise confirm each run. Save, then check alerts here.',
+              isDark: isDark,
+            ),
+
+            // Link: Open Shortcuts ↗
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _openAppleShortcuts,
+                icon: const Text(
+                  'Open Shortcuts',
+                  style: TextStyle(
+                    color: AppColors.forestGreen,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                label: const Icon(
+                  Icons.north_east,
+                  size: 14,
+                  color: AppColors.forestGreen,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
 
           // Big Dark Forest Green Action Button
@@ -468,7 +676,9 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
               'Preview only. Won\'t duplicate your transactions.',
               style: TextStyle(
                 fontSize: 12,
-                color: isDark ? AppColors.darkTextSecondary : AppColors.textMuted,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.textMuted,
               ),
             ),
           ),
@@ -488,7 +698,10 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.clayLight,
                     borderRadius: BorderRadius.circular(10),
@@ -519,14 +732,23 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                 decoration: BoxDecoration(
                   color: isDark ? AppColors.darkCard : AppColors.cardWhite,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.clayPrimary.withOpacity(0.3)),
+                  border: Border.all(
+                    color: AppColors.clayPrimary.withOpacity(0.3),
+                  ),
                 ),
                 child: ListTile(
                   leading: const CircleAvatar(
                     backgroundColor: AppColors.clayLight,
-                    child: Icon(Icons.priority_high, color: AppColors.clayPrimary, size: 18),
+                    child: Icon(
+                      Icons.priority_high,
+                      color: AppColors.clayPrimary,
+                      size: 18,
+                    ),
                   ),
-                  title: Text(tx.merchant, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  title: Text(
+                    tx.merchant,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   subtitle: Text('${tx.money.format()} · ${acc.name}'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
@@ -546,6 +768,109 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
             }),
             const SizedBox(height: 30),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAndroidStatusCard(bool isDark, AppState appState) {
+    final smsTransactions = appState.transactions
+        .where((tx) => tx.source == AppConstants.sourceSms)
+        .toList();
+    final hasImportedSms = smsTransactions.isNotEmpty;
+    final connected = _androidPermissionGranted;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCard : AppColors.cardWhite,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.borderSubtle,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF222F26)
+                      : const Color(0xFFE8F3EC),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.sms_outlined,
+                  size: 16,
+                  color: AppColors.forestGreen,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'Android SMS import',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: connected
+                      ? AppColors.greenAccentPill
+                      : const Color(0xFFF3F2EC),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.circle,
+                      size: 8,
+                      color: connected
+                          ? AppColors.forestGreen
+                          : AppColors.textMuted,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      connected ? 'Permission granted' : 'Permission needed',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: connected
+                            ? AppColors.forestGreen
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            !connected
+                ? 'Allow SMS access to import bank and telecom alerts from this phone. Nothing leaves the device.'
+                : hasImportedSms
+                ? 'Last automated alert: ${DateFormat('MMM d, h:mm a').format(smsTransactions.first.timestamp)}\nProcessed on-device with zero cloud telemetry'
+                : 'No SMS alerts imported yet. Tap "Import SMS now" below to scan the last 90 days.',
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.textSecondary,
+            ),
+          ),
         ],
       ),
     );
@@ -575,7 +900,9 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                color: isDark
+                    ? AppColors.darkTextPrimary
+                    : AppColors.textPrimary,
               ),
             ),
           ),
@@ -589,7 +916,9 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                    color: isDark
+                        ? AppColors.darkTextPrimary
+                        : AppColors.textPrimary,
                     letterSpacing: -0.2,
                   ),
                 ),
@@ -599,7 +928,9 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                   style: TextStyle(
                     fontSize: 12,
                     height: 1.4,
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textSecondary,
                   ),
                 ),
               ],
@@ -611,21 +942,31 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
   }
 
   void _showHelpDialog(BuildContext context) {
+    final isAndroid = AndroidSmsService.isSupported;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Apple Shortcuts Automation'),
-        content: const SingleChildScrollView(
+        title: Text(
+          isAndroid ? 'Android SMS import' : 'Apple Shortcuts Automation',
+        ),
+        content: SingleChildScrollView(
           child: Text(
-            'iOS restricts background SMS inbox reading for privacy.\n\n'
-            'LedgerLeaf works through Apple\'s built-in Shortcuts personal automation: '
-            'when your bank sends an SMS alert, iOS matches the sender and forwards the text directly to LedgerLeaf\'s local App Intent.\n\n'
-            'Your messages are processed 100% on-device with zero cloud telemetry.',
-            style: TextStyle(fontSize: 13, height: 1.4),
+            isAndroid
+                ? 'Android lets LedgerLeaf read bank and telecom SMS after you grant the SMS permission.\n\n'
+                      'On the first import the app scans the last 90 days. New messages are captured in the background and imported the next time you open LedgerLeaf.\n\n'
+                      'Everything is parsed and stored locally on this phone. There is no cloud service and no network permission.'
+                : 'iOS restricts background SMS inbox reading for privacy.\n\n'
+                      'LedgerLeaf works through Apple\'s built-in Shortcuts personal automation: '
+                      'when your bank sends an SMS alert, iOS matches the sender and forwards the text directly to LedgerLeaf\'s local App Intent.\n\n'
+                      'Your messages are processed 100% on-device with zero cloud telemetry.',
+            style: const TextStyle(fontSize: 13, height: 1.4),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Got it')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Got it'),
+          ),
         ],
       ),
     );

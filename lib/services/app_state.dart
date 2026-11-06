@@ -35,14 +35,14 @@ class AppState extends ChangeNotifier {
     IngestionService? ingestionService,
     CsvService? csvService,
     DatabaseHelper? dbHelper,
-  })  : _dbHelper = dbHelper ?? DatabaseHelper(),
-        _transactionRepo = transactionRepo ?? TransactionRepository(),
-        _accountRepo = accountRepo ?? AccountRepository(),
-        _categoryRepo = categoryRepo ?? CategoryRepository(),
-        _bundleRepo = bundleRepo ?? BundleRepository(),
-        _settingsRepo = settingsRepo ?? SettingsRepository(),
-        _csvService = csvService ?? CsvService(),
-        _ingestionService = ingestionService ?? IngestionService();
+  }) : _dbHelper = dbHelper ?? DatabaseHelper(),
+       _transactionRepo = transactionRepo ?? TransactionRepository(),
+       _accountRepo = accountRepo ?? AccountRepository(),
+       _categoryRepo = categoryRepo ?? CategoryRepository(),
+       _bundleRepo = bundleRepo ?? BundleRepository(),
+       _settingsRepo = settingsRepo ?? SettingsRepository(),
+       _csvService = csvService ?? CsvService(),
+       _ingestionService = ingestionService ?? IngestionService();
 
   bool _isLoading = true;
   bool get isLoading => _isLoading;
@@ -54,20 +54,29 @@ class AppState extends ChangeNotifier {
   ThemeMode get themeMode => _themeMode;
 
   DateTime _startDate = DateTime(DateTime.now().year, DateTime.now().month, 1);
-  DateTime _endDate = DateTime(DateTime.now().year, DateTime.now().month + 1, 0, 23, 59, 59);
+  DateTime _endDate = DateTime(
+    DateTime.now().year,
+    DateTime.now().month + 1,
+    0,
+    23,
+    59,
+    59,
+  );
   DateTime get startDate => _startDate;
   DateTime get endDate => _endDate;
 
   FinancialDashboardSummary _dashboardSummary = FinancialDashboardSummary.empty;
   FinancialDashboardSummary get dashboardSummary => _dashboardSummary;
 
-  int get totalBalanceSantims => _accounts.fold<int>(0, (sum, acc) => sum + acc.balanceSantims);
+  int get totalBalanceSantims =>
+      _accounts.fold<int>(0, (sum, acc) => sum + acc.balanceSantims);
 
   List<TransactionModel> _transactions = [];
   List<TransactionModel> get transactions => _transactions;
 
   List<TransactionModel> _pendingReviewTransactions = [];
-  List<TransactionModel> get pendingReviewTransactions => _pendingReviewTransactions;
+  List<TransactionModel> get pendingReviewTransactions =>
+      _pendingReviewTransactions;
 
   List<AccountModel> _accounts = [];
   List<AccountModel> get accounts => _accounts;
@@ -91,10 +100,14 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     // Load settings
-    final privacySetting = await _settingsRepo.getSetting(AppConstants.keyPrivacyMode);
+    final privacySetting = await _settingsRepo.getSetting(
+      AppConstants.keyPrivacyMode,
+    );
     _isPrivacyMode = privacySetting == 'true';
 
-    final themeSetting = await _settingsRepo.getSetting(AppConstants.keyThemeMode);
+    final themeSetting = await _settingsRepo.getSetting(
+      AppConstants.keyThemeMode,
+    );
     if (themeSetting == 'light') {
       _themeMode = ThemeMode.light;
     } else if (themeSetting == 'dark') {
@@ -112,7 +125,8 @@ class AppState extends ChangeNotifier {
     _accounts = await _accountRepo.getAllAccounts();
     _categories = await _categoryRepo.getAllCategories();
     _transactions = await _transactionRepo.getTransactions(_filterCriteria);
-    _pendingReviewTransactions = await _transactionRepo.getPendingReviewTransactions();
+    _pendingReviewTransactions = await _transactionRepo
+        .getPendingReviewTransactions();
     _dashboardSummary = await _transactionRepo.getDashboardSummary(
       startDate: _startDate,
       endDate: _endDate,
@@ -136,7 +150,10 @@ class AppState extends ChangeNotifier {
 
   void togglePrivacyMode() async {
     _isPrivacyMode = !_isPrivacyMode;
-    await _settingsRepo.setSetting(AppConstants.keyPrivacyMode, _isPrivacyMode ? 'true' : 'false');
+    await _settingsRepo.setSetting(
+      AppConstants.keyPrivacyMode,
+      _isPrivacyMode ? 'true' : 'false',
+    );
     notifyListeners();
   }
 
@@ -174,13 +191,20 @@ class AppState extends ChangeNotifier {
     await reloadAll();
   }
 
-  Future<IngestionResponse> ingestSms(String message, {String? sender, DateTime? messageTime}) async {
+  Future<IngestionResponse> ingestSms(
+    String message, {
+    String? sender,
+    DateTime? messageTime,
+    bool reload = true,
+  }) async {
     final response = await _ingestionService.processIncomingSms(
       rawMessage: message,
       sender: sender,
       messageTime: messageTime,
     );
-    await reloadAll();
+    if (reload) {
+      await reloadAll();
+    }
     return response;
   }
 

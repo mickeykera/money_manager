@@ -23,6 +23,11 @@ The APK is signed with the debug key unless `ANDROID_KEYSTORE_BASE64`,
 repository secrets are configured. Either way it can be sideloaded after
 allowing "Install unknown apps" on the phone.
 
+On Android, open the **SMS import** tab and tap **Allow SMS access & import**.
+LedgerLeaf then reads recent bank and telecom alerts on-device, parses them into
+transactions, and queues new incoming SMS in the background for the next time you
+open the app. Nothing is uploaded.
+
 ## iOS builds & sideloading
 
 The iOS IPA is built by GitHub Actions (`.github/workflows/ios-sideload.yml`).

@@ -1,14 +1,19 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import 'android_sms_service.dart';
 import 'app_state.dart';
 
 class NativeBridge with WidgetsBindingObserver {
-  static const MethodChannel _channel = MethodChannel('com.ledgerleaf/automation');
+  static const MethodChannel _channel = MethodChannel(
+    'com.ledgerleaf/automation',
+  );
   final AppState _appState;
   bool _isDraining = false;
 
@@ -25,8 +30,16 @@ class NativeBridge with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // App became active: drain any pending background ingestion events
-      drainNativeQueue();
+      unawaited(_handleResume());
+    }
+  }
+
+  Future<void> _handleResume() async {
+    // App became active: drain background events first, then pull any SMS that
+    // arrived while the app was closed on Android.
+    await drainNativeQueue();
+    if (AndroidSmsService.isSupported) {
+      await AndroidSmsService.instance.importRecentMessages(_appState);
     }
   }
 
@@ -80,10 +93,19 @@ class NativeBridge with WidgetsBindingObserver {
           }
 
           if (text != null && text.isNotEmpty) {
-            await _appState.ingestSms(text, sender: sender, messageTime: time);
+            await _appState.ingestSms(
+              text,
+              sender: sender,
+              messageTime: time,
+              reload: false,
+            );
             processedCount++;
           }
         }
+      }
+
+      if (processedCount > 0) {
+        await _appState.reloadAll();
       }
 
       // Truncate or remove drained file atomically
@@ -98,11 +120,26 @@ class NativeBridge with WidgetsBindingObserver {
 
   Future<File?> _getQueueFile() async {
     try {
+      // Android's manifest SMS receiver writes to the app's private files
+      // directory; ask the native side for the exact path so both sides agree.
+      if (Platform.isAndroid) {
+        try {
+          final androidPath = await _channel.invokeMethod<String>(
+            'getIngestionQueuePath',
+          );
+          if (androidPath != null && androidPath.isNotEmpty) {
+            return File(androidPath);
+          }
+        } catch (_) {}
+      }
+
       // First attempt to get App Group container path via MethodChannel if running on iOS
       String? groupPath;
       if (Platform.isIOS) {
         try {
-          groupPath = await _channel.invokeMethod<String>('getAppGroupDirectory');
+          groupPath = await _channel.invokeMethod<String>(
+            'getAppGroupDirectory',
+          );
         } catch (_) {}
       }
 

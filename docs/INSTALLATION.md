@@ -39,8 +39,18 @@ which is fine for sideloading. To sign with a real key, add the
 `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and
 `ANDROID_KEY_PASSWORD` repository secrets.
 
-The SMS automation features are iOS-only; the Android app is the same offline
-expense tracker without the Shortcuts integration.
+### Android SMS import
+
+1. Open the **SMS import** tab in the app.
+2. Tap **Allow SMS access & import** and accept the Android permission prompt.
+3. LedgerLeaf scans the last 90 days of SMS on-device, and keeps a background
+   receiver for new bank/telecom alerts. New messages are imported the next time
+   the app opens.
+4. Use **Import SMS now** at any time to pull messages received since the last
+   sync.
+
+The app only has the `READ_SMS` and `RECEIVE_SMS` permissions; there is no
+network permission in release builds.
 
 ---
 

@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -10,6 +12,7 @@ import 'data/repositories/settings_repository.dart';
 import 'presentation/screens/main_navigation_shell.dart';
 import 'presentation/screens/onboarding_screen.dart';
 import 'presentation/screens/startup_view.dart';
+import 'services/android_sms_service.dart';
 import 'services/app_state.dart';
 import 'services/native_bridge.dart';
 
@@ -57,7 +60,10 @@ void main() {
                 Text(
                   sanitizeErrorMessage(details.exception),
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -95,7 +101,9 @@ Future<StartupData> defaultInitializer() async {
   await dbHelper.database; // Ensure database tables are created & seeded
 
   final settingsRepo = SettingsRepository();
-  final onboardingDone = await settingsRepo.getSetting(AppConstants.keyOnboardingCompleted) == 'true';
+  final onboardingDone =
+      await settingsRepo.getSetting(AppConstants.keyOnboardingCompleted) ==
+      'true';
 
   final appState = AppState();
   await appState.initialize();
@@ -108,10 +116,26 @@ Future<StartupData> defaultInitializer() async {
     debugPrint('NativeBridge queue drain warning (non-fatal): $e\n$st');
   }
 
-  return StartupData(
-    appState: appState,
-    onboardingCompleted: onboardingDone,
-  );
+  // On Android, pull new bank/telecom SMS from the inbox in the background so
+  // the dashboard is up to date without blocking startup.
+  if (AndroidSmsService.isSupported) {
+    unawaited(_autoImportAndroidSms(appState));
+  }
+
+  return StartupData(appState: appState, onboardingCompleted: onboardingDone);
+}
+
+Future<void> _autoImportAndroidSms(AppState appState) async {
+  try {
+    final summary = await AndroidSmsService.instance.importRecentMessages(
+      appState,
+    );
+    debugPrint('Android SMS auto-import: ${summary.message}');
+  } catch (error, stackTrace) {
+    debugPrint(
+      'Android SMS auto-import warning (non-fatal): $error\n$stackTrace',
+    );
+  }
 }
 
 class LedgerLeafApp extends StatefulWidget {
@@ -222,7 +246,10 @@ class _LedgerLeafAppState extends State<LedgerLeafApp> {
             themeMode: _appState!.themeMode,
             home: _onboardingCompleted
                 ? MainNavigationShell(appState: _appState!)
-                : OnboardingScreen(onFinish: _finishOnboarding),
+                : OnboardingScreen(
+                    onFinish: _finishOnboarding,
+                    appState: _appState,
+                  ),
           );
         },
       );
@@ -235,7 +262,9 @@ class _LedgerLeafAppState extends State<LedgerLeafApp> {
       home: _status == StartupStatus.loading
           ? const StartupLoadingView()
           : StartupErrorView(
-              errorMessage: _errorMessage ?? 'An unexpected error occurred during startup.',
+              errorMessage:
+                  _errorMessage ??
+                  'An unexpected error occurred during startup.',
               onRetry: _startInitialization,
               onResetDatabase: _resetAndReinitialize,
             ),
