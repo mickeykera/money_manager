@@ -64,6 +64,44 @@ void main() {
       );
     });
 
+    test('matches purchased, recharged, subscribed and internet keywords', () {
+      for (final body in [
+        'You have purchased a data bundle.',
+        'You have recharged your line.',
+        'You have subscribed to a monthly package.',
+        'Your internet bundle is active.',
+        'You have renewed your bundle.',
+        'Airtime top up successful.',
+      ]) {
+        expect(
+          AndroidSmsService.looksLikeFinancialSms(
+            body,
+            sender: '+251911223344',
+          ),
+          isTrue,
+          reason: 'Expected prefilter to accept: $body',
+        );
+      }
+    });
+
+    test('trusts known telecom and bank senders even without keywords', () {
+      for (final sender in [
+        '994',
+        '0994',
+        '251994',
+        '00251994',
+        '251700',
+        '251704',
+        '251777',
+      ]) {
+        expect(
+          AndroidSmsService.looksLikeFinancialSms('Hello', sender: sender),
+          isTrue,
+          reason: 'Expected sender $sender to be treated as financial',
+        );
+      }
+    });
+
     test('ignores personal messages', () {
       expect(
         AndroidSmsService.looksLikeFinancialSms(

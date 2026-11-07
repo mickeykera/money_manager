@@ -43,9 +43,12 @@ abstract class BaseParser {
 
   /// Extracts standard reference code (e.g. "FT24...", "TB26...", "Ref: ...")
   String? extractReference(String message, [RegExp? customRegex]) {
-    final regex = customRegex ??
-        RegExp(r'(?:Ref|Txn\s*Ref|Txn\s*ID|Transaction\s*(?:number|No\.?)|የግብይት\s*ቁጥር)[\s:]*([A-Za-z0-9\.\-_]+)',
-            caseSensitive: false);
+    final regex =
+        customRegex ??
+        RegExp(
+          r'(?:Ref|Txn\s*Ref|Txn\s*ID|Transaction\s*(?:number|No\.?)|የግብይት\s*ቁጥር)[\s:]*([A-Za-z0-9\.\-_]+)',
+          caseSensitive: false,
+        );
     final match = regex.firstMatch(message);
     if (match != null && match.groupCount >= 1) {
       return match.group(1)?.replaceAll(RegExp(r'[\.\s]+$'), '');
@@ -55,12 +58,35 @@ abstract class BaseParser {
 
   /// Extracts available balance if mentioned
   int? extractBalance(String message, [RegExp? customRegex]) {
-    final regex = customRegex ??
-        RegExp(r'(?:Current\s*Balance|Available\s*Bal(?:ance)?|Bal(?:ance)?|ቀሪ\s*ሂሳብ)[\s:isብርETB]*([0-9,]+(?:\.[0-9]{1,2})?)',
-            caseSensitive: false);
+    final regex =
+        customRegex ??
+        RegExp(
+          r'(?:current\s+balance|available\s+bal(?:ance)?|remaining\s+bal(?:ance)?|'
+          r'new\s+m-?pesa\s+balance|bal(?:ance)?|ቀሪ\s*ሂሳብ(?:ዎ)?)'
+          r'[\s:.\-]*(?:is|was|of|ብር|etb|birr)?[\s:.\-]*'
+          r'(?:etb|birr|ብር)?\s*([0-9,]+(?:\.[0-9]{1,2})?)',
+          caseSensitive: false,
+        );
     final match = regex.firstMatch(message);
     if (match != null && match.groupCount >= 1) {
       final balStr = match.group(1);
+      if (balStr != null) {
+        return Money.parseString(balStr).santims;
+      }
+    }
+
+    // Some banks put the account number between the label and the amount, e.g.
+    // "Current Balance for Account 1000****4821 is ETB 14,250.75". Fall back to
+    // the first currency-marked amount after the label.
+    final broad = RegExp(
+      r'(?:current\s+balance|available\s+bal(?:ance)?|remaining\s+bal(?:ance)?|'
+      r'new\s+m-?pesa\s+balance|bal(?:ance)?|ቀሪ\s*ሂሳብ(?:ዎ)?)'
+      r'.{0,80}?(?:etb|birr|ብር)\s*([0-9,]+(?:\.[0-9]{1,2})?)',
+      caseSensitive: false,
+    );
+    final broadMatch = broad.firstMatch(message);
+    if (broadMatch != null && broadMatch.groupCount >= 1) {
+      final balStr = broadMatch.group(1);
       if (balStr != null) {
         return Money.parseString(balStr).santims;
       }
@@ -71,7 +97,9 @@ abstract class BaseParser {
   /// Determines transaction type (expense vs income vs reversal)
   String detectType(String message) {
     final lower = message.toLowerCase();
-    if (lower.contains('reversed') || lower.contains('reversal') || lower.contains('ተመላሽ')) {
+    if (lower.contains('reversed') ||
+        lower.contains('reversal') ||
+        lower.contains('ተመላሽ')) {
       return AppConstants.typeReversal;
     }
     if (lower.contains('refund') || lower.contains('refunded')) {
@@ -83,7 +111,9 @@ abstract class BaseParser {
         lower.contains('ገቢ')) {
       return AppConstants.typeIncome;
     }
-    if (lower.contains('transferred') || lower.contains('transfer to') || lower.contains('አስተላልፈዋል')) {
+    if (lower.contains('transferred') ||
+        lower.contains('transfer to') ||
+        lower.contains('አስተላልፈዋል')) {
       return AppConstants.typeTransfer;
     }
     return AppConstants.typeExpense;

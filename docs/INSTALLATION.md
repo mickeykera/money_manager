@@ -43,7 +43,7 @@ which is fine for sideloading. To sign with a real key, add the
 
 1. Open the **SMS import** tab in the app.
 2. Tap **Allow SMS access & import** and accept the Android permission prompt.
-3. LedgerLeaf scans the last 90 days of SMS on-device, and keeps a background
+3. LedgerLeaf scans the last 12 months of SMS on-device, and keeps a background
    receiver for new bank/telecom alerts. New messages are imported the next time
    the app opens.
 4. Use **Import SMS now** at any time to pull messages received since the last

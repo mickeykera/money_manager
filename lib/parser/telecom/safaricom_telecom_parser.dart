@@ -1,123 +1,150 @@
 import '../../core/constants/app_constants.dart';
-import '../../core/utils/money.dart';
 import 'telecom_parse_result.dart';
+import 'telecom_text_utils.dart';
 
 class SafaricomTelecomParser {
+  /// Safaricom Ethiopia data/voice short codes. 700 is also the M-PESA sender,
+  /// so those messages must contain a telecom keyword before they are treated
+  /// as a bundle alert.
+  static const Set<String> _safaricomSenderIds = {
+    'safaricom',
+    'safaricomet',
+    'safaricomethiopia',
+    '700',
+    '0700',
+    '251700',
+    '704',
+    '0704',
+    '251704',
+    '777',
+    '0777',
+    '251777',
+  };
+
+  static const Set<String> _otherProviderSenders = {
+    'cbe',
+    'cbebirr',
+    'telebirr',
+    'ethiotelecom',
+    'ethiotel',
+    '994',
+    '0994',
+    '251994',
+    'boa',
+    'abyssinia',
+    'dashen',
+    'amole',
+  };
+
   bool canParse(String message, String? sender) {
-    if (sender != null) {
-      final s = sender.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
-      if (s == 'safaricom' || s == 'safaricomet' || s == '700' || s == '704' || s == '777') return true;
-    }
     final lower = message.toLowerCase();
-    return (lower.contains('safaricom') || lower.contains('ሳፋሪኮም')) &&
-        (lower.contains('bundle') ||
-            lower.contains('package') ||
-            lower.contains('balance') ||
-            lower.contains('data') ||
-            lower.contains('voice') ||
-            lower.contains('remaining') ||
-            lower.contains('valid until') ||
-            lower.contains('expire'));
+    final hasTelecomKeyword = TelecomTextUtils.hasTelecomKeyword(message);
+
+    if (sender != null) {
+      final s = TelecomTextUtils.normalizeSender(sender);
+      if (_otherProviderSenders.contains(s)) return false;
+      if (_safaricomSenderIds.contains(s)) {
+        // 700 carries both M-PESA and bundle alerts. M-PESA confirmations must
+        // go to the money parser, not the bundle parser.
+        if (s == '700' || s == '0700' || s == '251700') {
+          if (lower.contains('m-pesa') ||
+              lower.contains('mpesa') ||
+              lower.contains('confirmed')) {
+            return false;
+          }
+          return hasTelecomKeyword;
+        }
+        return true;
+      }
+      if (s.contains('safaricom')) return hasTelecomKeyword;
+    }
+
+    final hasProvider =
+        lower.contains('safaricom') || message.contains('ሳፋሪኮም');
+    return hasProvider && hasTelecomKeyword;
   }
 
   TelecomParseResult parse(String message, String? sender) {
-    final lower = message.toLowerCase();
+    final isPurchase = TelecomTextUtils.isPurchase(message);
+    final isBalanceUpdate = TelecomTextUtils.isBalanceUpdate(message);
 
-    // 1. Detect Purchase vs Balance Update
-    final isPurchase = lower.contains('successfully purchased') ||
-        lower.contains('you have bought') ||
-        lower.contains('purchased') ||
-        message.contains('በተሳካ ሁኔታ ገዝተዋል') ||
-        message.contains('ገዝተዋል');
+    final dataRemaining = TelecomTextUtils.dataAllowance(
+      message,
+      remainingOnly: true,
+    );
+    final dataAny = TelecomTextUtils.dataAllowance(message);
+    final voiceRemaining = TelecomTextUtils.voiceAllowance(
+      message,
+      remainingOnly: true,
+    );
+    final voiceAny = TelecomTextUtils.voiceAllowance(message);
+    final smsRemaining = TelecomTextUtils.smsAllowance(
+      message,
+      remainingOnly: true,
+    );
+    final smsAny = TelecomTextUtils.smsAllowance(message);
 
-    final isBalanceUpdate = lower.contains('balance') ||
-        lower.contains('remaining') ||
-        message.contains('ቀሪ') ||
-        lower.contains('expire');
+    // For a purchase, prefer the bundle size that was bought rather than a
+    // "remaining" figure in the same SMS.
+    final purchaseData = TelecomTextUtils.dataAllowance(
+      message,
+      ignoreRemaining: true,
+    );
+    final purchaseVoice = TelecomTextUtils.voiceAllowance(
+      message,
+      ignoreRemaining: true,
+    );
+    final purchaseSms = TelecomTextUtils.smsAllowance(
+      message,
+      ignoreRemaining: true,
+    );
 
-    // 2. Identify Category & Unit
-    String unit = 'GB';
-    double allowance = 0.0;
-    String category = AppConstants.bundleCategoryData;
+    final balanceAllowance =
+        dataRemaining ??
+        voiceRemaining ??
+        smsRemaining ??
+        dataAny ??
+        voiceAny ??
+        smsAny;
+    final purchaseAllowance = purchaseData ?? purchaseVoice ?? purchaseSms;
 
-    if (lower.contains('night') || lower.contains('የማታ')) {
-      category = AppConstants.bundleCategoryNightData;
-    } else if (lower.contains('combo') || lower.contains('all-in-one') || lower.contains('ኮምቦ')) {
-      category = AppConstants.bundleCategoryCombo;
-    } else if (lower.contains('voice') || lower.contains('ድምፅ') || lower.contains('minutes')) {
-      if (!lower.contains('gb') && !lower.contains('mb') && !lower.contains('data')) {
-        category = AppConstants.bundleCategoryVoice;
-        unit = 'minutes';
+    final chosen = isPurchase
+        ? (purchaseAllowance ?? balanceAllowance)
+        : balanceAllowance;
+
+    if (chosen == null || chosen.value <= 0.001) {
+      return TelecomParseResult.unrecognized(
+        message,
+        reason: 'Could not extract Safaricom bundle allowance',
+      );
+    }
+
+    var originalAllowance = chosen.value;
+    var remainingAllowance = chosen.value;
+    if (isPurchase) {
+      final reportedRemaining = dataRemaining ?? voiceRemaining ?? smsRemaining;
+      if (reportedRemaining != null && reportedRemaining.unit == chosen.unit) {
+        remainingAllowance = reportedRemaining.value;
       }
-    } else if (lower.contains('sms')) {
-      if (!lower.contains('gb') && !lower.contains('mb') && !lower.contains('data')) {
-        category = AppConstants.bundleCategorySms;
-        unit = 'SMS';
-      }
+    } else {
+      originalAllowance = chosen.value;
+      remainingAllowance = chosen.value;
     }
 
-    // 3. Extract Allowance
-    // Regex for Data: e.g. "5GB", "3.85 GB", "1000MB", "450 MB"
-    final dataRegex = RegExp(r'([0-9]+(?:\.[0-9]+)?)\s*(GB|MB)', caseSensitive: false);
-    final dataMatch = dataRegex.firstMatch(message);
+    final category = _categoryFor(message, chosen.unit);
+    final unit = chosen.unit;
 
-    // Regex for Voice: e.g. "300 Minutes", "42 Minutes", "20 Min"
-    final voiceRegex = RegExp(r'([0-9]+)\s*(?:Minutes|Mins|Min|ደቂቃ)', caseSensitive: false);
-    final voiceMatch = voiceRegex.firstMatch(message);
+    final purchasePrice = isPurchase
+        ? TelecomTextUtils.purchasePriceSantims(message)
+        : null;
+    final expiry = TelecomTextUtils.expiryTime(message);
 
-    // Regex for SMS: e.g. "200 SMS", "15 SMS"
-    final smsRegex = RegExp(r'([0-9]+)\s*SMS', caseSensitive: false);
-    final smsMatch = smsRegex.firstMatch(message);
-
-    if (dataMatch != null && (category != AppConstants.bundleCategoryVoice && category != AppConstants.bundleCategorySms)) {
-      allowance = double.tryParse(dataMatch.group(1)!) ?? 0.0;
-      unit = dataMatch.group(2)!.toUpperCase();
-    } else if (voiceMatch != null && category == AppConstants.bundleCategoryVoice) {
-      allowance = double.tryParse(voiceMatch.group(1)!) ?? 0.0;
-      unit = 'minutes';
-    } else if (smsMatch != null && category == AppConstants.bundleCategorySms) {
-      allowance = double.tryParse(smsMatch.group(1)!) ?? 0.0;
-      unit = 'SMS';
-    }
-
-    // 4. Extract Purchase Price (e.g. "for ETB 150.00", "ETB 750.00", "for Birr 35.00")
-    int? purchasePrice;
-    final priceMatch = RegExp(r'(?:for\s+ETB|for\s+Birr|ETB|Birr|በብር|ብር)\s*([0-9,]+(?:\.[0-9]{1,2})?)', caseSensitive: false).firstMatch(message);
-    if (priceMatch != null && priceMatch.groupCount >= 1 && isPurchase) {
-      purchasePrice = Money.parseString(priceMatch.group(1)!).santims;
-    }
-
-    // 5. Extract Expiry Timestamp (e.g. "valid until 2026-11-01 23:59:59")
-    DateTime? expiry;
-    final dateMatch = RegExp(
-      r'(?:valid\s+until|expire[a-z\s]*on|እስከ)\s*([0-9]{4}-[0-9]{2}-[0-9]{2}(?:\s+[0-9]{2}:[0-9]{2}(?::[0-9]{2})?)?)',
-      caseSensitive: false,
-    ).firstMatch(message);
-    if (dateMatch != null && dateMatch.groupCount >= 1) {
-      expiry = DateTime.tryParse(dateMatch.group(1)!);
-    }
-
-    // 6. Name resolution
-    String bundleName = 'Safaricom $allowance $unit';
-    if (category == AppConstants.bundleCategoryNightData) {
-      bundleName = 'Safaricom Night $allowance $unit';
-    } else if (category == AppConstants.bundleCategoryCombo) {
-      bundleName = 'Safaricom All-in-One ($allowance $unit)';
-    } else if (category == AppConstants.bundleCategoryVoice) {
-      bundleName = 'Safaricom ${allowance.toInt()} Mins Voice';
-    } else if (category == AppConstants.bundleCategorySms) {
-      bundleName = 'Safaricom ${allowance.toInt()} SMS Bundle';
-    } else if (lower.contains('monthly')) {
-      bundleName = 'Safaricom Monthly $allowance $unit';
-    } else if (lower.contains('weekly')) {
-      bundleName = 'Safaricom Weekly $allowance $unit';
-    } else if (lower.contains('daily')) {
-      bundleName = 'Safaricom Daily $allowance $unit';
-    }
-
-    if (allowance <= 0.001) {
-      return TelecomParseResult.unrecognized(message, reason: 'Could not extract Safaricom bundle allowance');
-    }
+    final bundleName = _bundleName(
+      category: category,
+      allowance: originalAllowance,
+      unit: unit,
+      message: message,
+    );
 
     return TelecomParseResult(
       isRecognized: true,
@@ -126,8 +153,8 @@ class SafaricomTelecomParser {
       category: category,
       isPurchase: isPurchase,
       isBalanceUpdate: isBalanceUpdate,
-      originalAllowance: allowance,
-      remainingAllowance: allowance,
+      originalAllowance: originalAllowance,
+      remainingAllowance: remainingAllowance,
       unit: unit,
       purchasePriceSantims: purchasePrice,
       expiryTime: expiry,
@@ -135,5 +162,47 @@ class SafaricomTelecomParser {
       confidenceScore: 0.98,
       rawMessage: message,
     );
+  }
+
+  String _categoryFor(String message, String unit) {
+    final lower = message.toLowerCase();
+    if (lower.contains('night') || message.contains('የማታ')) {
+      return AppConstants.bundleCategoryNightData;
+    }
+    if (lower.contains('combo') ||
+        lower.contains('all-in-one') ||
+        message.contains('ኮምቦ')) {
+      return AppConstants.bundleCategoryCombo;
+    }
+    if (unit == 'minutes') return AppConstants.bundleCategoryVoice;
+    if (unit == 'SMS') return AppConstants.bundleCategorySms;
+    return AppConstants.bundleCategoryData;
+  }
+
+  String _bundleName({
+    required String category,
+    required double allowance,
+    required String unit,
+    required String message,
+  }) {
+    final lower = message.toLowerCase();
+    final size = TelecomTextUtils.formatAllowance(allowance);
+
+    if (category == AppConstants.bundleCategoryNightData) {
+      return 'Safaricom Night $size $unit';
+    }
+    if (category == AppConstants.bundleCategoryCombo) {
+      return 'Safaricom All-in-One ($size $unit)';
+    }
+    if (category == AppConstants.bundleCategoryVoice) {
+      return 'Safaricom $size Mins Voice';
+    }
+    if (category == AppConstants.bundleCategorySms) {
+      return 'Safaricom $size SMS Bundle';
+    }
+    if (lower.contains('monthly')) return 'Safaricom Monthly $size $unit';
+    if (lower.contains('weekly')) return 'Safaricom Weekly $size $unit';
+    if (lower.contains('daily')) return 'Safaricom Daily $size $unit';
+    return 'Safaricom $size $unit';
   }
 }

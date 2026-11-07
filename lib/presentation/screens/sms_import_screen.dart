@@ -72,7 +72,7 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
 
       final summary = await AndroidSmsService.instance.importRecentMessages(
         widget.appState,
-        includeAlreadySynced: false,
+        includeAlreadySynced: true,
       );
       if (mounted) {
         setState(() => _lastAndroidImport = summary);
@@ -541,7 +541,7 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
             _buildStepRow(
               number: '2',
               title: 'Existing alerts are imported',
-              body: 'The last 90 days of bank and telecom SMS are scanned on-device and parsed into transactions.',
+              body: 'The last 12 months of bank and telecom SMS are scanned on-device and parsed into transactions.',
               isDark: isDark,
             ),
             _buildStepRow(
@@ -862,7 +862,7 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                 ? 'Allow SMS access to import bank and telecom alerts from this phone. Nothing leaves the device.'
                 : hasImportedSms
                 ? 'Last automated alert: ${DateFormat('MMM d, h:mm a').format(smsTransactions.first.timestamp)}\nProcessed on-device with zero cloud telemetry'
-                : 'No SMS alerts imported yet. Tap "Import SMS now" below to scan the last 90 days.',
+                : 'No SMS alerts imported yet. Tap "Import SMS now" below to scan the last 12 months.',
             style: TextStyle(
               fontSize: 12,
               height: 1.4,
@@ -953,7 +953,7 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
           child: Text(
             isAndroid
                 ? 'Android lets LedgerLeaf read bank and telecom SMS after you grant the SMS permission.\n\n'
-                      'On the first import the app scans the last 90 days. New messages are captured in the background and imported the next time you open LedgerLeaf.\n\n'
+                      'On the first import the app scans the last 12 months. New messages are captured in the background and imported the next time you open LedgerLeaf.\n\n'
                       'Everything is parsed and stored locally on this phone. There is no cloud service and no network permission.'
                 : 'iOS restricts background SMS inbox reading for privacy.\n\n'
                       'LedgerLeaf works through Apple\'s built-in Shortcuts personal automation: '

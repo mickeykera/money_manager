@@ -223,7 +223,8 @@ void main() {
     // 1. Commercial Bank of Ethiopia (CBE)
     group('1. Commercial Bank of Ethiopia (CBE) Matrix', () {
       test('CBE: Successful debit parsing with exact santims and reference', () {
-        const sms = 'Dear Customer, your Account 1000****4821 has been debited with ETB 350.00 on 24/10/2026 for Purchase at Fresh Corner. Current Balance is ETB 14,250.75. Ref: FT242981234.';
+        const sms =
+            'Dear Customer, your Account 1000****4821 has been debited with ETB 350.00 on 24/10/2026 for Purchase at Fresh Corner. Current Balance is ETB 14,250.75. Ref: FT242981234.';
         final res = parserEngine.parse(sms, sender: '127');
         expect(res.isSuccess, isTrue);
         expect(res.amountSantims, equals(35000));
@@ -240,38 +241,75 @@ void main() {
       });
 
       test('CBE: Missing or ambiguous amount flags for pending review', () {
-        const sms = 'Dear Customer, your Account 1000****4821 has been debited on 24/10/2026 for Fresh Corner. Ref: FT242981234.';
+        const sms =
+            'Dear Customer, your Account 1000****4821 has been debited on 24/10/2026 for Fresh Corner. Ref: FT242981234.';
         final res = parserEngine.parse(sms, sender: 'CBE');
         expect(res.isSuccess, isFalse);
         expect(res.status, equals(ParseStatus.pendingReview));
       });
 
       test('CBE: Duplicate delivery prevents duplicate transaction expense', () async {
-        const sms = 'Dear Customer, your Account 1000****4821 has been debited with ETB 350.00 on 24/10/2026 for Purchase at Fresh Corner. Ref: FT242981234.';
-        final res1 = await ingestionService.processIncomingSms(rawMessage: sms, sender: 'CBE');
+        const sms =
+            'Dear Customer, your Account 1000****4821 has been debited with ETB 350.00 on 24/10/2026 for Purchase at Fresh Corner. Ref: FT242981234.';
+        final res1 = await ingestionService.processIncomingSms(
+          rawMessage: sms,
+          sender: 'CBE',
+        );
         expect(res1.success, isTrue);
         expect(res1.isDuplicate, isFalse);
 
         // Second delivery of same message
-        final res2 = await ingestionService.processIncomingSms(rawMessage: sms, sender: 'CBE');
+        final res2 = await ingestionService.processIncomingSms(
+          rawMessage: sms,
+          sender: 'CBE',
+        );
         expect(res2.success, isTrue);
         expect(res2.isDuplicate, isTrue);
 
-        final transactions = await txRepo.getTransactions(const FilterCriteria());
+        final transactions = await txRepo.getTransactions(
+          const FilterCriteria(),
+        );
         expect(transactions.length, equals(1)); // Only one transaction saved!
       });
 
       test('CBE: Pure balance notification does NOT create transaction', () {
-        const sms = 'Dear Customer, your Current Balance for Account 1000****4821 is ETB 14,250.75.';
+        const sms =
+            'Dear Customer, your Current Balance for Account 1000****4821 is ETB 14,250.75.';
         final res = parserEngine.parse(sms, sender: 'CBE');
         expect(res.status, equals(ParseStatus.rejectedNonFinancial));
       });
+
+      test(
+        'CBE: Pure balance notification reconciles the account balance',
+        () async {
+          const sms =
+              'Dear Customer, your Current Balance for Account 1000****4821 '
+              'is ETB 14,250.75.';
+          final res = await ingestionService.processIncomingSms(
+            rawMessage: sms,
+            sender: 'CBE',
+          );
+
+          expect(res.success, isTrue);
+          expect(res.isBalanceUpdate, isTrue);
+          expect(res.transaction, isNull);
+
+          final account = await accountRepo.getAccountById('acc_cbe');
+          expect(account?.balanceSantims, equals(1425075));
+
+          final transactions = await txRepo.getTransactions(
+            const FilterCriteria(),
+          );
+          expect(transactions, isEmpty);
+        },
+      );
     });
 
     // 2. Telebirr
     group('2. Telebirr Matrix', () {
       test('Telebirr: Successful payment parsing', () {
-        const sms = 'You have paid ETB 250.00 to Kaldi\'s Coffee (0911****00) on 2026-10-24 14:30:15. Transaction number is TB261024.1430.A12345. Your current balance is ETB 1,840.50.';
+        const sms =
+            'You have paid ETB 250.00 to Kaldi\'s Coffee (0911****00) on 2026-10-24 14:30:15. Transaction number is TB261024.1430.A12345. Your current balance is ETB 1,840.50.';
         final res = parserEngine.parse(sms, sender: 'telebirr');
         expect(res.isSuccess, isTrue);
         expect(res.amountSantims, equals(25000));
@@ -281,7 +319,8 @@ void main() {
       });
 
       test('Telebirr: Missing amount flags for review', () {
-        const sms = 'You have paid to Kaldi\'s Coffee on 2026-10-24 14:30:15. Transaction number is TB261024.1430.A12345.';
+        const sms =
+            'You have paid to Kaldi\'s Coffee on 2026-10-24 14:30:15. Transaction number is TB261024.1430.A12345.';
         final res = parserEngine.parse(sms, sender: 'telebirr');
         expect(res.isSuccess, isFalse);
         expect(res.status, equals(ParseStatus.pendingReview));
@@ -291,13 +330,15 @@ void main() {
     // 3. Bank of Abyssinia (BOA)
     group('3. Bank of Abyssinia (BOA) Matrix', () {
       test('BOA: Successful debit and reversal handling', () {
-        const debitSms = 'Dear Customer, your account BOA****5678 has been debited by ETB 820.50 on 24-Oct-2026 11:20:00. Txn Ref: BOA261024987. Available Bal: ETB 8,450.00.';
+        const debitSms =
+            'Dear Customer, your account BOA****5678 has been debited by ETB 820.50 on 24-Oct-2026 11:20:00. Txn Ref: BOA261024987. Available Bal: ETB 8,450.00.';
         final res = parserEngine.parse(debitSms, sender: 'BOA');
         expect(res.isSuccess, isTrue);
         expect(res.amountSantims, equals(82050));
         expect(res.transactionType, equals(AppConstants.typeExpense));
 
-        const revSms = 'Dear Customer, reversal of ETB 820.50 on account BOA****5678 completed. Txn Ref: BOA261024REV.';
+        const revSms =
+            'Dear Customer, reversal of ETB 820.50 on account BOA****5678 completed. Txn Ref: BOA261024REV.';
         final revRes = parserEngine.parse(revSms, sender: 'BOA');
         expect(revRes.isSuccess, isTrue);
         expect(revRes.transactionType, equals(AppConstants.typeReversal));
@@ -307,7 +348,8 @@ void main() {
     // 4. Dashen Bank
     group('4. Dashen Bank Matrix', () {
       test('Dashen: Successful POS purchase parsing', () {
-        const sms = 'Dear Customer, Account 5100****4321 debited with ETB 1,450.00 on 24/10/2026. Reason: POS Purchase at Shoa Supermarket. Avail Bal: ETB 6,200.00. Txn ID: DSH261024001.';
+        const sms =
+            'Dear Customer, Account 5100****4321 debited with ETB 1,450.00 on 24/10/2026. Reason: POS Purchase at Shoa Supermarket. Avail Bal: ETB 6,200.00. Txn ID: DSH261024001.';
         final res = parserEngine.parse(sms, sender: 'Dashen');
         expect(res.isSuccess, isTrue);
         expect(res.amountSantims, equals(145000));
@@ -319,36 +361,63 @@ void main() {
     // 5. Safaricom M-PESA
     group('5. Safaricom M-PESA Matrix', () {
       test('M-PESA: Outgoing payment vs incoming credit vs airtime', () {
-        const outSms = 'TD94RNM67E Confirmed. ETB 450.00 sent to Abebe Bikila 0712345678 on 24/10/26 at 10:30 AM. New M-PESA balance is ETB 1,820.00.';
+        const outSms =
+            'TD94RNM67E Confirmed. ETB 450.00 sent to Abebe Bikila 0712345678 on 24/10/26 at 10:30 AM. New M-PESA balance is ETB 1,820.00.';
         final outRes = parserEngine.parse(outSms, sender: '700');
         expect(outRes.isSuccess, isTrue);
         expect(outRes.transactionType, equals(AppConstants.typeExpense));
         expect(outRes.amountSantims, equals(45000));
 
-        const inSms = 'TD94RNM68F Confirmed. You have received ETB 2,000.00 from Aster Aweke 0798765432 on 24/10/26 at 11:15 AM. New M-PESA balance is ETB 3,820.00.';
+        const inSms =
+            'TD94RNM68F Confirmed. You have received ETB 2,000.00 from Aster Aweke 0798765432 on 24/10/26 at 11:15 AM. New M-PESA balance is ETB 3,820.00.';
         final inRes = parserEngine.parse(inSms, sender: 'MPESA');
         expect(inRes.isSuccess, isTrue);
         expect(inRes.transactionType, equals(AppConstants.typeIncome));
         expect(inRes.amountSantims, equals(200000));
 
-        const airtimeSms = 'TD94RNM70H Confirmed. You have bought ETB 50.00 of airtime on 24/10/26 at 1:00 PM. New M-PESA balance is ETB 3,590.00.';
+        const airtimeSms =
+            'TD94RNM70H Confirmed. You have bought ETB 50.00 of airtime on 24/10/26 at 1:00 PM. New M-PESA balance is ETB 3,590.00.';
         final airRes = parserEngine.parse(airtimeSms, sender: '700');
         expect(airRes.isSuccess, isTrue);
         expect(airRes.merchant, equals('Safaricom Airtime Top-up'));
       });
 
       test('M-PESA: Pure balance alert does NOT create transaction', () {
-        const balSms = 'Dear Customer, your New M-PESA balance is ETB 3,590.00.';
+        const balSms =
+            'Dear Customer, your New M-PESA balance is ETB 3,590.00.';
         final res = parserEngine.parse(balSms, sender: '700');
         expect(res.status, equals(ParseStatus.rejectedNonFinancial));
       });
+
+      test(
+        'M-PESA: Pure balance alert reconciles the M-PESA account',
+        () async {
+          const balSms =
+              'Dear Customer, your New M-PESA balance is ETB 3,590.00.';
+          final res = await ingestionService.processIncomingSms(
+            rawMessage: balSms,
+            sender: '700',
+          );
+
+          expect(res.success, isTrue);
+          expect(res.isBalanceUpdate, isTrue);
+          expect(res.transaction, isNull);
+
+          final account = await accountRepo.getAccountById('acc_mpesa');
+          expect(account?.balanceSantims, equals(359000));
+        },
+      );
     });
 
     // 6. Ethio telecom and Safaricom Telecom Matrix
     group('6. Ethio telecom & Safaricom Telecom Matrix', () {
       test('Ethio telecom: Package purchase creates expense transaction and bundle model', () async {
-        const buySms = 'Dear customer, you have successfully purchased 10GB Monthly Data bundle for ETB 300.00. Valid until 2026-11-24 18:30:00.';
-        final res = await ingestionService.processIncomingSms(rawMessage: buySms, sender: '994');
+        const buySms =
+            'Dear customer, you have successfully purchased 10GB Monthly Data bundle for ETB 300.00. Valid until 2026-11-24 18:30:00.';
+        final res = await ingestionService.processIncomingSms(
+          rawMessage: buySms,
+          sender: '994',
+        );
         expect(res.success, isTrue);
         expect(res.isTelecomUpdate, isTrue);
         expect(res.transaction, isNotNull);
@@ -360,8 +429,12 @@ void main() {
       });
 
       test('Ethio telecom: *804# balance check updates bundle without creating transaction', () async {
-        const balSms = 'Dear Customer, your remaining package balance is 7.20 GB Data valid until 2026-11-24.';
-        final res = await ingestionService.processIncomingSms(rawMessage: balSms, sender: 'Ethio telecom');
+        const balSms =
+            'Dear Customer, your remaining package balance is 7.20 GB Data valid until 2026-11-24.';
+        final res = await ingestionService.processIncomingSms(
+          rawMessage: balSms,
+          sender: 'Ethio telecom',
+        );
         expect(res.success, isTrue);
         expect(res.isTelecomUpdate, isTrue);
         expect(res.transaction, isNull); // Never creates an expense!
@@ -371,14 +444,22 @@ void main() {
       });
 
       test('Safaricom Ethiopia: Package purchase creates expense and balance check does not', () async {
-        const buySms = 'Dear customer, you have successfully purchased 5GB Weekly Data bundle for ETB 150.00. Valid until 2026-11-01 23:59:59.';
-        final buyRes = await ingestionService.processIncomingSms(rawMessage: buySms, sender: 'Safaricom');
+        const buySms =
+            'Dear customer, you have successfully purchased 5GB Weekly Data bundle for ETB 150.00. Valid until 2026-11-01 23:59:59.';
+        final buyRes = await ingestionService.processIncomingSms(
+          rawMessage: buySms,
+          sender: 'Safaricom',
+        );
         expect(buyRes.success, isTrue);
         expect(buyRes.transaction, isNotNull);
         expect(buyRes.transaction!.amountSantims, equals(15000));
 
-        const balSms = 'Your Safaricom balance: Data: 3.85 GB valid until 2026-11-01 23:59:59. Voice: 42 Minutes. SMS: 15.';
-        final balRes = await ingestionService.processIncomingSms(rawMessage: balSms, sender: '704');
+        const balSms =
+            'Your Safaricom balance: Data: 3.85 GB valid until 2026-11-01 23:59:59. Voice: 42 Minutes. SMS: 15.';
+        final balRes = await ingestionService.processIncomingSms(
+          rawMessage: balSms,
+          sender: '704',
+        );
         expect(balRes.success, isTrue);
         expect(balRes.transaction, isNull); // Zero transaction generated!
       });

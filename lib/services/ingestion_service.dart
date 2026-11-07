@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:crypto/crypto.dart';
 import 'package:uuid/uuid.dart';
 
@@ -21,6 +22,7 @@ class IngestionResponse {
   final bool isDuplicate;
   final bool isPendingReview;
   final bool isTelecomUpdate;
+  final bool isBalanceUpdate;
   final String message;
   final TransactionModel? transaction;
   final ParseResult? parseResult;
@@ -31,6 +33,7 @@ class IngestionResponse {
     this.isDuplicate = false,
     this.isPendingReview = false,
     this.isTelecomUpdate = false,
+    this.isBalanceUpdate = false,
     required this.message,
     this.transaction,
     this.parseResult,
@@ -55,13 +58,13 @@ class IngestionService {
     AccountRepository? accountRepo,
     SettingsRepository? settingsRepo,
     DatabaseHelper? dbHelper,
-  })  : _parserEngine = parserEngine ?? ParserEngine(),
-        _telecomEngine = telecomEngine ?? TelecomParserEngine(),
-        _transactionRepo = transactionRepo ?? TransactionRepository(),
-        _bundleRepo = bundleRepo ?? BundleRepository(),
-        _accountRepo = accountRepo ?? AccountRepository(),
-        _settingsRepo = settingsRepo ?? SettingsRepository(),
-        _dbHelper = dbHelper ?? DatabaseHelper();
+  }) : _parserEngine = parserEngine ?? ParserEngine(),
+       _telecomEngine = telecomEngine ?? TelecomParserEngine(),
+       _transactionRepo = transactionRepo ?? TransactionRepository(),
+       _bundleRepo = bundleRepo ?? BundleRepository(),
+       _accountRepo = accountRepo ?? AccountRepository(),
+       _settingsRepo = settingsRepo ?? SettingsRepository(),
+       _dbHelper = dbHelper ?? DatabaseHelper();
 
   /// Primary pipeline for processing incoming SMS messages
   Future<IngestionResponse> processIncomingSms({
@@ -122,7 +125,30 @@ class IngestionService {
       );
     }
 
-    // 2c. Unrecognized or parse error
+    // 2c. Pure balance notification: no transaction to record, but the
+    // reported balance is authoritative and should reconcile the account.
+    if (parseResult.balanceSantims != null && parseResult.amountSantims <= 0) {
+      final accountId = await _resolveAccountId(
+        sender,
+        parseResult.institution,
+      );
+      await _accountRepo.setBalance(accountId, parseResult.balanceSantims!);
+      await _logIngestion(
+        sender: sender,
+        snippet: sanitizedSnippet,
+        status: 'balance_update',
+        amount: parseResult.balanceSantims,
+        confidence: parseResult.confidenceScore,
+      );
+      return IngestionResponse(
+        success: true,
+        isBalanceUpdate: true,
+        message: 'Account balance updated to ${parseResult.balance!.format()}',
+        parseResult: parseResult,
+      );
+    }
+
+    // 2d. Unrecognized or parse error
     if (parseResult.status == ParseStatus.rejectedNonFinancial ||
         parseResult.status == ParseStatus.error) {
       await _logIngestion(
@@ -182,7 +208,9 @@ class IngestionService {
     );
 
     // 2h. Privacy setting for original message
-    final retainSmsSetting = await _settingsRepo.getSetting(AppConstants.keyRetainOriginalSms);
+    final retainSmsSetting = await _settingsRepo.getSetting(
+      AppConstants.keyRetainOriginalSms,
+    );
     final shouldRetainSms = retainSmsSetting != 'false';
 
     final isHighConfidence = parseResult.confidenceScore >= 0.85;
@@ -211,6 +239,13 @@ class IngestionService {
 
     // 2i. Atomically persist transaction
     await _transactionRepo.insertTransaction(tx);
+
+    // If the same SMS also reports the account balance, trust it over the
+    // incrementally calculated balance. This keeps the dashboard aligned with
+    // the bank even when older transactions were never imported.
+    if (parseResult.balanceSantims != null) {
+      await _accountRepo.setBalance(accountId, parseResult.balanceSantims!);
+    }
 
     // 2j. Audit log
     await _logIngestion(
@@ -261,8 +296,13 @@ class IngestionService {
       );
 
       if (!isDup) {
-        final accountId = await _resolveAccountId(sender, telecomResult.provider);
-        final retainSmsSetting = await _settingsRepo.getSetting(AppConstants.keyRetainOriginalSms);
+        final accountId = await _resolveAccountId(
+          sender,
+          telecomResult.provider,
+        );
+        final retainSmsSetting = await _settingsRepo.getSetting(
+          AppConstants.keyRetainOriginalSms,
+        );
         final shouldRetainSms = retainSmsSetting != 'false';
 
         tx = TransactionModel(
@@ -331,7 +371,9 @@ class IngestionService {
     await _logIngestion(
       sender: sender,
       snippet: sanitizedSnippet,
-      status: telecomResult.isPurchase ? 'telecom_purchase' : 'telecom_balance_update',
+      status: telecomResult.isPurchase
+          ? 'telecom_purchase'
+          : 'telecom_balance_update',
       amount: telecomResult.purchasePriceSantims,
       confidence: telecomResult.confidenceScore,
     );
@@ -402,11 +444,33 @@ class IngestionService {
   }
 
   Future<String> _resolveAccountId(String? sender, String institution) async {
-    final s = (sender ?? institution).toLowerCase();
-    if (s.contains('mpesa') || s.contains('safaricom') || s.contains('700') || s.contains('ሳፋሪኮም')) {
+    final s = (sender ?? '').toLowerCase();
+    final inst = institution.toLowerCase();
+
+    // The parser-selected institution is the most reliable signal. This also
+    // disambiguates sender 127, which is shared by CBE and Telebirr.
+    if (inst.contains('m-pesa') ||
+        inst.contains('mpesa') ||
+        inst.contains('safaricom')) {
       return 'acc_mpesa';
     }
-    if (s.contains('telebirr') || s.contains('ቴሌብር') || s.contains('ethio telecom') || s.contains('994') || s.contains('127')) {
+    if (inst.contains('telebirr')) return 'acc_telebirr';
+    if (inst.contains('ethio telecom')) return 'acc_telebirr';
+    if (inst.contains('abyssinia') || inst.contains('boa')) return 'acc_boa';
+    if (inst.contains('cbe') || inst.contains('commercial bank')) {
+      return 'acc_cbe';
+    }
+
+    if (s.contains('mpesa') ||
+        s.contains('m-pesa') ||
+        s.contains('safaricom') ||
+        s.contains('ሳፋሪኮም')) {
+      return 'acc_mpesa';
+    }
+    if (s.contains('telebirr') ||
+        s.contains('ቴሌብር') ||
+        s.contains('ethio telecom') ||
+        s.contains('ethiotelecom')) {
       return 'acc_telebirr';
     }
     if (s.contains('abyssinia') || s.contains('boa') || s.contains('አቢሲኒያ')) {
@@ -415,12 +479,38 @@ class IngestionService {
     if (s.contains('cbe') || s.contains('ንግድ ባንክ')) {
       return 'acc_cbe';
     }
+
+    // Short codes. 127 is shared by CBE and Telebirr, so it defaults to CBE
+    // only after the institution checks above have had a chance to decide.
+    final normalized = s.replaceAll(RegExp(r'[^a-z0-9]'), '');
+    if (normalized == '700' ||
+        normalized == '0700' ||
+        normalized == '251700' ||
+        normalized == '704' ||
+        normalized == '0704' ||
+        normalized == '251704' ||
+        normalized == '777' ||
+        normalized == '0777' ||
+        normalized == '251777') {
+      return 'acc_mpesa';
+    }
+    if (normalized == '994' ||
+        normalized == '0994' ||
+        normalized == '251994' ||
+        normalized == '00251994') {
+      return 'acc_telebirr';
+    }
+    if (normalized == '127') return 'acc_cbe';
+
     // Default account
     final accounts = await _accountRepo.getAllAccounts();
     return accounts.isNotEmpty ? accounts.first.id : 'acc_cbe';
   }
 
-  Future<String> _resolveCategoryId({required String merchant, required String type}) async {
+  Future<String> _resolveCategoryId({
+    required String merchant,
+    required String type,
+  }) async {
     if (type == AppConstants.typeIncome) {
       return 'cat_income';
     }
@@ -463,7 +553,9 @@ class IngestionService {
         m.contains('ፓኬጅ')) {
       return 'cat_utilities';
     }
-    if (m.contains('airtime') || m.contains('fee') || m.contains('service charge')) {
+    if (m.contains('airtime') ||
+        m.contains('fee') ||
+        m.contains('service charge')) {
       return 'cat_fees';
     }
     if (m.contains('pharmacy') ||
@@ -473,13 +565,21 @@ class IngestionService {
         m.contains('medical')) {
       return 'cat_health';
     }
-    if (m.contains('school') || m.contains('university') || m.contains('college') || m.contains('tuition')) {
+    if (m.contains('school') ||
+        m.contains('university') ||
+        m.contains('college') ||
+        m.contains('tuition')) {
       return 'cat_education';
     }
-    if (m.contains('cinema') || m.contains('movie') || m.contains('theatre') || m.contains('concert')) {
+    if (m.contains('cinema') ||
+        m.contains('movie') ||
+        m.contains('theatre') ||
+        m.contains('concert')) {
       return 'cat_entertainment';
     }
-    if (m.contains('cash withdrawal') || m.contains('atm') || m.contains('withdrawn')) {
+    if (m.contains('cash withdrawal') ||
+        m.contains('atm') ||
+        m.contains('withdrawn')) {
       return 'cat_transfer';
     }
 

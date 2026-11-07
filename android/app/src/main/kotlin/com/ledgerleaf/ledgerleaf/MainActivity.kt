@@ -38,9 +38,11 @@ class MainActivity : FlutterActivity() {
                             return@setMethodCallHandler
                         }
                         val since = call.argument<Number>("since")?.toLong() ?: 0L
+                        val before = call.argument<Number>("before")?.toLong() ?: 0L
+                        val beforeId = call.argument<Number>("beforeId")?.toLong() ?: 0L
                         val limit = call.argument<Number>("limit")?.toInt() ?: 500
                         try {
-                            result.success(readSmsInbox(since, limit))
+                            result.success(readSmsInbox(since, before, beforeId, limit))
                         } catch (error: Exception) {
                             result.error("sms_read_failed", error.message, null)
                         }
@@ -102,9 +104,15 @@ class MainActivity : FlutterActivity() {
         pendingPermissionResult = null
     }
 
-    private fun readSmsInbox(since: Long, limit: Int): List<Map<String, Any?>> {
+    private fun readSmsInbox(
+        since: Long,
+        before: Long,
+        beforeId: Long,
+        limit: Int,
+    ): List<Map<String, Any?>> {
         val messages = mutableListOf<Map<String, Any?>>()
         val projection = arrayOf(
+            Telephony.Sms._ID,
             Telephony.Sms.ADDRESS,
             Telephony.Sms.BODY,
             Telephony.Sms.DATE,
@@ -116,6 +124,23 @@ class MainActivity : FlutterActivity() {
             selectionParts.add("${Telephony.Sms.DATE} > ?")
             selectionArgs.add(since.toString())
         }
+        // Upper bound used to page backwards through the inbox without skipping
+        // older messages when a scan returns more than one page. The row id is
+        // the tiebreaker so messages sharing a timestamp are never dropped.
+        if (before > 0) {
+            if (beforeId > 0) {
+                selectionParts.add(
+                    "(${Telephony.Sms.DATE} < ? OR " +
+                        "(${Telephony.Sms.DATE} = ? AND ${Telephony.Sms._ID} < ?))",
+                )
+                selectionArgs.add(before.toString())
+                selectionArgs.add(before.toString())
+                selectionArgs.add(beforeId.toString())
+            } else {
+                selectionParts.add("${Telephony.Sms.DATE} < ?")
+                selectionArgs.add(before.toString())
+            }
+        }
         selectionParts.add("${Telephony.Sms.BODY} IS NOT NULL")
 
         val cursor = contentResolver.query(
@@ -123,10 +148,11 @@ class MainActivity : FlutterActivity() {
             projection,
             selectionParts.joinToString(" AND "),
             selectionArgs.toTypedArray(),
-            "${Telephony.Sms.DATE} DESC",
+            "${Telephony.Sms.DATE} DESC, ${Telephony.Sms._ID} DESC",
         )
 
         cursor?.use {
+            val idIndex = it.getColumnIndex(Telephony.Sms._ID)
             val addressIndex = it.getColumnIndex(Telephony.Sms.ADDRESS)
             val bodyIndex = it.getColumnIndex(Telephony.Sms.BODY)
             val dateIndex = it.getColumnIndex(Telephony.Sms.DATE)
@@ -137,6 +163,7 @@ class MainActivity : FlutterActivity() {
 
                 messages.add(
                     mapOf(
+                        "id" to if (idIndex >= 0) it.getLong(idIndex) else 0L,
                         "sender" to if (addressIndex >= 0) it.getString(addressIndex) else null,
                         "body" to body,
                         "date" to if (dateIndex >= 0) it.getLong(dateIndex) else 0L,

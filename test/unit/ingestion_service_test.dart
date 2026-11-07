@@ -40,6 +40,8 @@ void main() {
                 balance_santims INTEGER NOT NULL DEFAULT 0,
                 currency TEXT NOT NULL DEFAULT 'ETB',
                 account_number_masked TEXT,
+                is_sms_linked INTEGER NOT NULL DEFAULT 1,
+                balance_source TEXT NOT NULL DEFAULT 'Latest imported SMS',
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
               );
@@ -195,9 +197,10 @@ void main() {
       expect(response.transaction?.categoryId, 'cat_food'); // Auto-categorized to food
       expect(response.transaction?.accountId, 'acc_cbe');
 
-      // Verify account balance updated (5,000 - 350 = 4,650 ETB = 465000 santims)
+      // The SMS reports Current Balance ETB 14,250.75, which is authoritative
+      // and reconciles the account (instead of the old 5,000 - 350 value).
       final acc = await accountRepo.getAccountById('acc_cbe');
-      expect(acc?.balanceSantims, 465000);
+      expect(acc?.balanceSantims, 1425075);
 
       // Verify audit log entry created
       final logs = await db.query('ingestion_logs');

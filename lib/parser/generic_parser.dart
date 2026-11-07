@@ -12,13 +12,33 @@ class GenericBankParser extends BaseParser {
   @override
   bool canParse(String message, String? sender) {
     final lower = message.toLowerCase();
-    // Look for common banking keywords
-    return lower.contains('debited') ||
-        lower.contains('credited') ||
-        lower.contains('paid') ||
-        lower.contains('transferred') ||
-        lower.contains('withdrawn') ||
-        (lower.contains('account') && (lower.contains('balance') || lower.contains('etb')));
+    final hasCurrency =
+        lower.contains('etb') ||
+        lower.contains('birr') ||
+        message.contains('ብር');
+    final hasMoneyVerb = RegExp(
+      r'\b(debited|credited|debit|credit|paid|payment|transferred|transfer|'
+      r'withdrawn|withdrawal|deposit(?:ed)?|spent|charged|deducted|'
+      r'purchased|bought|recharged|received)\b',
+      caseSensitive: false,
+    ).hasMatch(lower);
+    final hasBankSignal =
+        lower.contains('account') ||
+        lower.contains('acct') ||
+        lower.contains('bank') ||
+        lower.contains('transaction') ||
+        lower.contains('txn') ||
+        lower.contains('balance') ||
+        lower.contains('ref') ||
+        message.contains('ሂሳብ') ||
+        message.contains('ባንክ');
+
+    // A plain "data balance is 7GB" message must not be mistaken for money.
+    if (lower.contains('balance') && !hasCurrency && !hasMoneyVerb) {
+      return false;
+    }
+
+    return hasMoneyVerb || (hasCurrency && hasBankSignal);
   }
 
   @override
@@ -26,30 +46,57 @@ class GenericBankParser extends BaseParser {
     final filterResult = checkCommonFilters(message);
     if (filterResult != null) return filterResult;
 
+    final lower = message.toLowerCase();
     final type = detectType(message);
+    final balance = extractBalance(message);
 
-    // Look for amount pattern
-    final regex = RegExp(
-      r'(?:debited|credited|paid|transferred|withdrawn|amount\s*of)\s*(?:with|by|of)?\s*(?:ETB|Birr|\$)?\s*([0-9,]+(?:\.[0-9]{1,2})?)',
+    final hasTransactionVerb = RegExp(
+      r'\b(debited|credited|debit|credit|paid|payment|transferred|transfer|'
+      r'withdrawn|withdrawal|deposit(?:ed)?|spent|charged|deducted|'
+      r'purchased|bought|recharged|received)\b',
       caseSensitive: false,
-    );
+    ).hasMatch(lower);
 
-    final altRegex = RegExp(
-      r'(?:ETB|Birr)\s*([0-9,]+(?:\.[0-9]{1,2})?)',
-      caseSensitive: false,
-    );
-
-    String? amountStr;
-    final match = regex.firstMatch(message) ?? altRegex.firstMatch(message);
-    if (match != null && match.groupCount >= 1) {
-      amountStr = match.group(1);
+    // Pure balance alert: no transaction to record, but the reported balance is
+    // still valuable for reconciling the account.
+    if (!hasTransactionVerb) {
+      if (balance != null) {
+        return ParseResult(
+          status: ParseStatus.rejectedNonFinancial,
+          institution: sender ?? institutionName,
+          balanceSantims: balance,
+          failureReason: 'Pure balance notification without transaction charge',
+          rawMessage: message,
+        );
+      }
+      return ParseResult.failure(
+        institution: sender ?? institutionName,
+        rawMessage: message,
+        reason: 'No transaction amount or balance found',
+        status: ParseStatus.rejectedNonFinancial,
+      );
     }
 
+    // Search for the amount before the balance section so "Current Balance is
+    // ETB 1,000" is never used as the transaction amount.
+    final amountPart = _truncateAtBalance(message);
+    String? amountStr = _findAmount(amountPart) ?? _findAmount(message);
+
     if (amountStr == null) {
+      if (balance != null) {
+        return ParseResult(
+          status: ParseStatus.rejectedNonFinancial,
+          institution: sender ?? institutionName,
+          balanceSantims: balance,
+          failureReason: 'Balance notification without a transaction amount',
+          rawMessage: message,
+        );
+      }
       return ParseResult.failure(
-        institution: institutionName,
+        institution: sender ?? institutionName,
         rawMessage: message,
-        reason: 'Unrecognized message format; no clear transaction amount found',
+        reason:
+            'Unrecognized message format; no clear transaction amount found',
         status: ParseStatus.rejectedNonFinancial,
       );
     }
@@ -59,24 +106,31 @@ class GenericBankParser extends BaseParser {
     // Extract Merchant if available
     String merchant = 'Bank Transaction';
     final merchantMatch = RegExp(
-      r"(?:to|for|at|from)\s+([A-Za-z0-9\s&'\-\.]+?)(?:\s+on|\.\s*Ref|\.\s*Bal|$)",
+      r"(?:to|for|at|from)\s+([A-Za-z0-9\s&'\-\.]+?)(?:\s+on|\.\s*Ref|\.\s*Bal|\.\s*Current|$)",
       caseSensitive: false,
     ).firstMatch(message);
 
     if (merchantMatch != null && merchantMatch.groupCount >= 1) {
       var m = merchantMatch.group(1)?.trim();
       if (m != null && m.isNotEmpty && !m.toLowerCase().startsWith('account')) {
-        m = m.replaceFirst(RegExp(r'^(?:payment|purchase)\s+(?:to|at|for)\s+', caseSensitive: false), '');
+        m = m.replaceFirst(
+          RegExp(
+            r'^(?:payment|purchase)\s+(?:to|at|for)\s+',
+            caseSensitive: false,
+          ),
+          '',
+        );
         merchant = m.trim();
       }
     }
 
     final reference = extractReference(message);
-    final balance = extractBalance(message);
 
     // Generic parsers assign lower confidence (0.75) and flag for review if no reference
     final confidence = reference != null ? 0.85 : 0.70;
-    final status = confidence >= 0.80 ? ParseStatus.success : ParseStatus.pendingReview;
+    final status = confidence >= 0.80
+        ? ParseStatus.success
+        : ParseStatus.pendingReview;
 
     return ParseResult(
       status: status,
@@ -93,5 +147,41 @@ class GenericBankParser extends BaseParser {
           : [],
       rawMessage: message,
     );
+  }
+
+  String _truncateAtBalance(String message) {
+    final lower = message.toLowerCase();
+    var index = lower.indexOf('balance');
+    if (index < 0) index = lower.indexOf('ቀሪ');
+    if (index <= 0) return message;
+    return message.substring(0, index);
+  }
+
+  String? _findAmount(String text) {
+    final patterns = <RegExp>[
+      RegExp(
+        r'(?:debited|credited|paid|transferred|withdrawn|spent|charged|'
+        r'deducted|deposited|received|purchased|bought|recharged|debit|credit)'
+        r'\b[\s:.\-]*(?:with|by|of|for|from|to|amount|an\s+amount\s+of)?'
+        r'[\s:.\-]*(?:ETB|Birr|ብር)?\s*([0-9,]+(?:\.[0-9]{1,2})?)',
+        caseSensitive: false,
+      ),
+      RegExp(
+        r'(?:ETB|Birr|ብር)\s*([0-9,]+(?:\.[0-9]{1,2})?)',
+        caseSensitive: false,
+      ),
+      RegExp(
+        r'([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:ETB|Birr|ብር)',
+        caseSensitive: false,
+      ),
+    ];
+
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(text);
+      if (match != null && match.groupCount >= 1) {
+        return match.group(1);
+      }
+    }
+    return null;
   }
 }

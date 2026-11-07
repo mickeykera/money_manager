@@ -1,123 +1,166 @@
 import '../../core/constants/app_constants.dart';
-import '../../core/utils/money.dart';
 import 'telecom_parse_result.dart';
+import 'telecom_text_utils.dart';
 
 class EthioTelecomParser {
+  /// Sender IDs used by Ethio telecom package alerts. `251994` is what Android
+  /// usually stores for `+251994`; `0994` is the local form.
+  static const Set<String> _ethioSenderIds = {
+    '994',
+    '0994',
+    '251994',
+    '00251994',
+    'ethiotelecom',
+    'ethiotel',
+    'ethiotelecomet',
+    'ethiotelecome',
+  };
+
+  /// Senders that belong to another provider/bank even if the text mentions a
+  /// bundle. Keeps a CBE or M-PESA alert from being treated as telecom.
+  static const Set<String> _otherProviderSenders = {
+    'cbe',
+    'cbebirr',
+    'boa',
+    'abyssinia',
+    'bankofabyssinia',
+    'dashen',
+    'amole',
+    'mpesa',
+    'safaricom',
+    'safaricomet',
+    '700',
+    '704',
+    '777',
+  };
+
   bool canParse(String message, String? sender) {
     final lower = message.toLowerCase();
-    final hasTelecomKeyword = lower.contains('package') ||
-        lower.contains('bundle') ||
-        lower.contains('ፓኬጅ') ||
-        lower.contains('remaining') ||
-        lower.contains('ቀሪ') ||
-        lower.contains('valid until') ||
-        lower.contains('expire') ||
-        lower.contains('gb') ||
-        lower.contains('mb');
+    final hasTelecomKeyword = TelecomTextUtils.hasTelecomKeyword(message);
 
     if (sender != null) {
-      final s = sender.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
-      if (s == 'ethiotelecom' || s == 'ethiotel' || s == '994') return true;
-      if (s == '127' && hasTelecomKeyword) return true;
+      final s = TelecomTextUtils.normalizeSender(sender);
+
+      // Any message from 994 / 251994 is an Ethio telecom message, even when it
+      // is written in Amharic or only says "you have recharged".
+      if (_ethioSenderIds.contains(s)) return true;
+
+      // 127 is shared by CBE and Telebirr. Only treat it as telecom when the
+      // text clearly looks like an Ethio telecom package alert.
+      if (s == '127') {
+        return hasTelecomKeyword &&
+            (lower.contains('ethio telecom') ||
+                lower.contains('ethiotelecom') ||
+                message.contains('ኢትዮ ቴሌኮም') ||
+                message.contains('ፓኬጅ') ||
+                lower.contains('package') ||
+                lower.contains('bundle') ||
+                lower.contains('gb') ||
+                lower.contains('mb'));
+      }
+
+      if (_otherProviderSenders.contains(s)) return false;
     }
-    return (lower.contains('ethio telecom') || lower.contains('ኢትዮ ቴሌኮም') || lower.contains('ethiotelecom')) &&
-        hasTelecomKeyword;
+
+    final hasProvider =
+        lower.contains('ethio telecom') ||
+        lower.contains('ethiotelecom') ||
+        lower.contains('ethio-telecom') ||
+        message.contains('ኢትዮ ቴሌኮም') ||
+        message.contains('ኢትዮቴሌኮም');
+
+    return hasProvider && hasTelecomKeyword;
   }
 
   TelecomParseResult parse(String message, String? sender) {
-    final lower = message.toLowerCase();
-    final isAmharic = message.contains('ውድ ደንበኛችን') || message.contains('ፓኬጅ') || message.contains('ኢትዮ ቴሌኮም');
+    final isAmharic =
+        message.contains('ውድ ደንበኛችን') ||
+        message.contains('ፓኬጅ') ||
+        message.contains('ኢትዮ ቴሌኮም');
 
-    // 1. Detect if it's a Purchase vs a Balance Update
-    final isPurchase = lower.contains('successfully purchased') ||
-        lower.contains('you have bought') ||
-        message.contains('በተሳካ ሁኔታ ገዝተዋል') ||
-        message.contains('ገዝተዋል');
+    final isPurchase = TelecomTextUtils.isPurchase(message);
+    final isBalanceUpdate = TelecomTextUtils.isBalanceUpdate(message);
 
-    final isBalanceUpdate = lower.contains('remaining') ||
-        lower.contains('balance is') ||
-        message.contains('ቀሪ') ||
-        lower.contains('expire');
+    // Extract every allowance form, preferring the value labelled "remaining".
+    final dataRemaining = TelecomTextUtils.dataAllowance(
+      message,
+      remainingOnly: true,
+    );
+    final dataAny = TelecomTextUtils.dataAllowance(message);
+    final voiceRemaining = TelecomTextUtils.voiceAllowance(
+      message,
+      remainingOnly: true,
+    );
+    final voiceAny = TelecomTextUtils.voiceAllowance(message);
+    final smsRemaining = TelecomTextUtils.smsAllowance(
+      message,
+      remainingOnly: true,
+    );
+    final smsAny = TelecomTextUtils.smsAllowance(message);
 
-    // Extract Unit & Allowance (e.g. "10GB", "500MB", "145 Minutes", "80 SMS")
-    String unit = 'GB';
-    double allowance = 0.0;
-    String category = AppConstants.bundleCategoryData;
+    // For a purchase, prefer the bundle size that was bought rather than a
+    // "remaining" figure in the same SMS.
+    final purchaseData = TelecomTextUtils.dataAllowance(
+      message,
+      ignoreRemaining: true,
+    );
+    final purchaseVoice = TelecomTextUtils.voiceAllowance(
+      message,
+      ignoreRemaining: true,
+    );
+    final purchaseSms = TelecomTextUtils.smsAllowance(
+      message,
+      ignoreRemaining: true,
+    );
 
-    if (lower.contains('night') || lower.contains('የማታ')) {
-      category = AppConstants.bundleCategoryNightData;
-    } else if (lower.contains('combo') || lower.contains('ኮምቦ')) {
-      category = AppConstants.bundleCategoryCombo;
-    } else if (lower.contains('voice') || lower.contains('ድምፅ') || lower.contains('minutes')) {
-      if (!lower.contains('gb') && !lower.contains('mb') && !lower.contains('data')) {
-        category = AppConstants.bundleCategoryVoice;
-        unit = 'minutes';
+    final balanceAllowance =
+        dataRemaining ??
+        voiceRemaining ??
+        smsRemaining ??
+        dataAny ??
+        voiceAny ??
+        smsAny;
+    final purchaseAllowance = purchaseData ?? purchaseVoice ?? purchaseSms;
+
+    final chosen = isPurchase
+        ? (purchaseAllowance ?? balanceAllowance)
+        : balanceAllowance;
+
+    if (chosen == null || chosen.value <= 0.001) {
+      return TelecomParseResult.unrecognized(
+        message,
+        reason: 'Could not extract telecom bundle allowance',
+      );
+    }
+
+    // For a purchase, the original size is the purchased amount. If the same
+    // SMS also reports what is left, keep that as the remaining allowance.
+    var originalAllowance = chosen.value;
+    var remainingAllowance = chosen.value;
+    if (isPurchase) {
+      final reportedRemaining = dataRemaining ?? voiceRemaining ?? smsRemaining;
+      if (reportedRemaining != null && reportedRemaining.unit == chosen.unit) {
+        remainingAllowance = reportedRemaining.value;
       }
-    } else if (lower.contains('sms')) {
-      if (!lower.contains('gb') && !lower.contains('mb') && !lower.contains('data')) {
-        category = AppConstants.bundleCategorySms;
-        unit = 'SMS';
-      }
+    } else {
+      originalAllowance = chosen.value;
+      remainingAllowance = chosen.value;
     }
 
-    // Regex for Data Allowance: e.g. "10GB", "7.20 GB", "500 MB", "500MB"
-    final dataRegex = RegExp(r'([0-9]+(?:\.[0-9]+)?)\s*(GB|MB)', caseSensitive: false);
-    final dataMatch = dataRegex.firstMatch(message);
+    final category = _categoryFor(message, chosen.unit);
+    final unit = chosen.unit;
 
-    // Regex for Voice Minutes: e.g. "145 Minutes", "45 Min"
-    final voiceRegex = RegExp(r'([0-9]+)\s*(?:Minutes|Mins|Min|ደቂቃ)', caseSensitive: false);
-    final voiceMatch = voiceRegex.firstMatch(message);
+    final purchasePrice = isPurchase
+        ? TelecomTextUtils.purchasePriceSantims(message)
+        : null;
+    final expiry = TelecomTextUtils.expiryTime(message);
 
-    // Regex for SMS: e.g. "80 SMS"
-    final smsRegex = RegExp(r'([0-9]+)\s*SMS', caseSensitive: false);
-    final smsMatch = smsRegex.firstMatch(message);
-
-    if (dataMatch != null && (category != AppConstants.bundleCategoryVoice && category != AppConstants.bundleCategorySms)) {
-      allowance = double.tryParse(dataMatch.group(1)!) ?? 0.0;
-      unit = dataMatch.group(2)!.toUpperCase();
-    } else if (voiceMatch != null && category == AppConstants.bundleCategoryVoice) {
-      allowance = double.tryParse(voiceMatch.group(1)!) ?? 0.0;
-      unit = 'minutes';
-    } else if (smsMatch != null && category == AppConstants.bundleCategorySms) {
-      allowance = double.tryParse(smsMatch.group(1)!) ?? 0.0;
-      unit = 'SMS';
-    }
-
-    // Extract Purchase Price (e.g. "for ETB 300.00", "በብር 300.00")
-    int? purchasePrice;
-    final priceMatch = RegExp(r'(?:for\s+ETB|for\s+Birr|በብር|ብር)\s*([0-9,]+(?:\.[0-9]{1,2})?)', caseSensitive: false).firstMatch(message);
-    if (priceMatch != null && priceMatch.groupCount >= 1) {
-      purchasePrice = Money.parseString(priceMatch.group(1)!).santims;
-    }
-
-    // Extract Expiry Timestamp (e.g. "valid until 2026-11-24 18:30:00", "እስከ 2026-11-24")
-    DateTime? expiry;
-    final dateMatch = RegExp(r'(?:valid\s+until|expire[a-z\s]*on|እስከ)\s*([0-9]{4}-[0-9]{2}-[0-9]{2}(?:\s+[0-9]{2}:[0-9]{2}(?::[0-9]{2})?)?)', caseSensitive: false).firstMatch(message);
-    if (dateMatch != null && dateMatch.groupCount >= 1) {
-      expiry = DateTime.tryParse(dateMatch.group(1)!);
-    }
-
-    // Bundle Name
-    String bundleName = 'Ethio telecom $allowance $unit';
-    if (category == AppConstants.bundleCategoryNightData) {
-      bundleName = 'Night Data $allowance $unit';
-    } else if (category == AppConstants.bundleCategoryCombo) {
-      bundleName = 'Combo Package ($allowance $unit)';
-    } else if (category == AppConstants.bundleCategoryVoice) {
-      bundleName = '${allowance.toInt()} Mins Voice Bundle';
-    } else if (category == AppConstants.bundleCategorySms) {
-      bundleName = '${allowance.toInt()} SMS Bundle';
-    } else if (lower.contains('monthly') || message.contains('ወርሃዊ')) {
-      bundleName = 'Monthly $allowance $unit Data';
-    } else if (lower.contains('weekly') || message.contains('ሳምንታዊ')) {
-      bundleName = 'Weekly $allowance $unit Data';
-    } else if (lower.contains('daily') || message.contains('ዕለታዊ')) {
-      bundleName = 'Daily $allowance $unit Data';
-    }
-
-    if (allowance <= 0.001) {
-      return TelecomParseResult.unrecognized(message, reason: 'Could not extract telecom bundle allowance');
-    }
+    final bundleName = _bundleName(
+      category: category,
+      allowance: originalAllowance,
+      unit: unit,
+      message: message,
+    );
 
     return TelecomParseResult(
       isRecognized: true,
@@ -126,8 +169,8 @@ class EthioTelecomParser {
       category: category,
       isPurchase: isPurchase,
       isBalanceUpdate: isBalanceUpdate,
-      originalAllowance: allowance,
-      remainingAllowance: allowance,
+      originalAllowance: originalAllowance,
+      remainingAllowance: remainingAllowance,
       unit: unit,
       purchasePriceSantims: purchasePrice,
       expiryTime: expiry,
@@ -135,5 +178,53 @@ class EthioTelecomParser {
       confidenceScore: isAmharic ? 0.94 : 0.98,
       rawMessage: message,
     );
+  }
+
+  String _categoryFor(String message, String unit) {
+    final lower = message.toLowerCase();
+    if (lower.contains('night') || message.contains('የማታ')) {
+      return AppConstants.bundleCategoryNightData;
+    }
+    if (lower.contains('combo') ||
+        lower.contains('all-in-one') ||
+        message.contains('ኮምቦ')) {
+      return AppConstants.bundleCategoryCombo;
+    }
+    if (unit == 'minutes') return AppConstants.bundleCategoryVoice;
+    if (unit == 'SMS') return AppConstants.bundleCategorySms;
+    return AppConstants.bundleCategoryData;
+  }
+
+  String _bundleName({
+    required String category,
+    required double allowance,
+    required String unit,
+    required String message,
+  }) {
+    final lower = message.toLowerCase();
+    final size = TelecomTextUtils.formatAllowance(allowance);
+
+    if (category == AppConstants.bundleCategoryNightData) {
+      return 'Night Data $size $unit';
+    }
+    if (category == AppConstants.bundleCategoryCombo) {
+      return 'Combo Package ($size $unit)';
+    }
+    if (category == AppConstants.bundleCategoryVoice) {
+      return '$size Mins Voice Bundle';
+    }
+    if (category == AppConstants.bundleCategorySms) {
+      return '$size SMS Bundle';
+    }
+    if (lower.contains('monthly') || message.contains('ወርሃዊ')) {
+      return 'Monthly $size $unit Data';
+    }
+    if (lower.contains('weekly') || message.contains('ሳምንታዊ')) {
+      return 'Weekly $size $unit Data';
+    }
+    if (lower.contains('daily') || message.contains('ዕለታዊ')) {
+      return 'Daily $size $unit Data';
+    }
+    return 'Ethio telecom $size $unit';
   }
 }
