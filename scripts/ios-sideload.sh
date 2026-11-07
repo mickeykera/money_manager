@@ -61,6 +61,41 @@ die() {
   exit 1
 }
 
+# Work out owner/name from the git remote without calling the network. This
+# keeps the script usable when api.github.com is slow or unreachable.
+detect_repo() {
+  local remote
+  remote=$(git remote get-url origin 2>/dev/null || true)
+  case "$remote" in
+    git@github.com:*)
+      printf '%s\n' "${remote#git@github.com:}" | sed 's/\.git$//'
+      ;;
+    https://github.com/*)
+      printf '%s\n' "${remote#https://github.com/}" | sed 's/\.git$//'
+      ;;
+    ssh://git@github.com/*)
+      printf '%s\n' "${remote#ssh://git@github.com/}" | sed 's/\.git$//'
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+# Retry short GitHub API calls a few times; these often fail transiently.
+gh_retry() {
+  local attempt
+  for attempt in 1 2 3; do
+    if "$@"; then
+      return 0
+    fi
+    if [[ $attempt -lt 3 ]]; then
+      sleep $((attempt * 2))
+    fi
+  done
+  return 1
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --ipa)
@@ -113,9 +148,12 @@ done
 command -v gh >/dev/null 2>&1 || die "gh is not installed. Install it from https://cli.github.com/"
 
 if [[ -z "$REPO" ]]; then
-  REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner) ||
-    die "could not detect the GitHub repo; pass --repo owner/name"
+  REPO=$(detect_repo || true)
 fi
+if [[ -z "$REPO" ]]; then
+  REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)
+fi
+[[ -n "$REPO" ]] || die "could not detect the GitHub repo; pass --repo owner/name"
 
 if [[ -z "$IPA" ]]; then
   TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/ledgerleaf-ipa.XXXXXX")
@@ -128,7 +166,8 @@ if [[ -z "$IPA" ]]; then
 
   if [[ $DO_BUILD -eq 1 ]]; then
     echo "Triggering $WORKFLOW_FILE on $REPO ($REF)..."
-    gh workflow run "$WORKFLOW_FILE" --repo "$REPO" --ref "$REF" -f build_type=unsigned
+    gh_retry gh workflow run "$WORKFLOW_FILE" --repo "$REPO" --ref "$REF" -f build_type=unsigned ||
+      die "could not trigger the workflow; check your connection and 'gh auth status'"
 
     # The new run can take a few seconds to appear in the API.
     for _ in $(seq 1 20); do
@@ -143,15 +182,18 @@ if [[ -z "$IPA" ]]; then
     echo "Watching run $RUN_ID..."
     gh run watch "$RUN_ID" --repo "$REPO" --exit-status
   elif [[ -z "$RUN_ID" ]]; then
-    RUN_ID=$(gh run list --repo "$REPO" --workflow "$WORKFLOW_FILE" \
-      --status success --limit 1 --json databaseId -q '.[0].databaseId // empty')
-    [[ -n "$RUN_ID" ]] || die "no successful $WORKFLOW_FILE run found; re-run with --build"
+    RUN_ID=$(gh_retry gh run list --repo "$REPO" --workflow "$WORKFLOW_FILE" \
+      --status success --limit 1 --json databaseId -q '.[0].databaseId // empty' || true)
+    [[ -n "$RUN_ID" ]] || die \
+      "could not find a successful $WORKFLOW_FILE run (GitHub may be unreachable). Pass --run-id ID, or install a local IPA with --ipa /path/to/app.ipa"
     echo "Using latest successful run: $RUN_ID"
   fi
 
   echo "Downloading the unsigned IPA artifact..."
-  gh run download "$RUN_ID" --repo "$REPO" \
-    --pattern "$ARTIFACT_PATTERN" --dir "$TMP_DIR"
+  if ! gh_retry gh run download "$RUN_ID" --repo "$REPO" \
+    --pattern "$ARTIFACT_PATTERN" --dir "$TMP_DIR"; then
+    die "could not download the IPA from GitHub. Check your connection, or install a local file with: $0 --ipa /path/to/app.ipa"
+  fi
 
   IPA=$(find "$TMP_DIR" -type f -name '*.ipa' | head -n 1)
   [[ -n "$IPA" ]] || die "the artifact did not contain an .ipa file"

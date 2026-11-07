@@ -59,6 +59,41 @@ die() {
   exit 1
 }
 
+# Work out owner/name from the git remote without calling the network. This
+# keeps the script usable when api.github.com is slow or unreachable.
+detect_repo() {
+  local remote
+  remote=$(git remote get-url origin 2>/dev/null || true)
+  case "$remote" in
+    git@github.com:*)
+      printf '%s\n' "${remote#git@github.com:}" | sed 's/\.git$//'
+      ;;
+    https://github.com/*)
+      printf '%s\n' "${remote#https://github.com/}" | sed 's/\.git$//'
+      ;;
+    ssh://git@github.com/*)
+      printf '%s\n' "${remote#ssh://git@github.com/}" | sed 's/\.git$//'
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+# Retry short GitHub API calls a few times; these often fail transiently.
+gh_retry() {
+  local attempt
+  for attempt in 1 2 3; do
+    if "$@"; then
+      return 0
+    fi
+    if [[ $attempt -lt 3 ]]; then
+      sleep $((attempt * 2))
+    fi
+  done
+  return 1
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --apk)
@@ -112,9 +147,12 @@ done
 command -v gh >/dev/null 2>&1 || die "gh is not installed. Install it from https://cli.github.com/"
 
 if [[ -z "$REPO" ]]; then
-  REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner) ||
-    die "could not detect the GitHub repo; pass --repo owner/name"
+  REPO=$(detect_repo || true)
 fi
+if [[ -z "$REPO" ]]; then
+  REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)
+fi
+[[ -n "$REPO" ]] || die "could not detect the GitHub repo; pass --repo owner/name"
 
 if [[ -z "$APK" ]]; then
   TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/ledgerleaf-apk.XXXXXX")
@@ -127,7 +165,8 @@ if [[ -z "$APK" ]]; then
 
   if [[ $DO_BUILD -eq 1 ]]; then
     echo "Triggering $WORKFLOW_FILE on $REPO ($REF)..."
-    gh workflow run "$WORKFLOW_FILE" --repo "$REPO" --ref "$REF"
+    gh_retry gh workflow run "$WORKFLOW_FILE" --repo "$REPO" --ref "$REF" ||
+      die "could not trigger the workflow; check your connection and 'gh auth status'"
 
     # The new run can take a few seconds to appear in the API.
     for _ in $(seq 1 20); do
@@ -142,15 +181,18 @@ if [[ -z "$APK" ]]; then
     echo "Watching run $RUN_ID..."
     gh run watch "$RUN_ID" --repo "$REPO" --exit-status
   elif [[ -z "$RUN_ID" ]]; then
-    RUN_ID=$(gh run list --repo "$REPO" --workflow "$WORKFLOW_FILE" \
-      --status success --limit 1 --json databaseId -q '.[0].databaseId // empty')
-    [[ -n "$RUN_ID" ]] || die "no successful $WORKFLOW_FILE run found; re-run with --build"
+    RUN_ID=$(gh_retry gh run list --repo "$REPO" --workflow "$WORKFLOW_FILE" \
+      --status success --limit 1 --json databaseId -q '.[0].databaseId // empty' || true)
+    [[ -n "$RUN_ID" ]] || die \
+      "could not find a successful $WORKFLOW_FILE run (GitHub may be unreachable). Pass --run-id ID, or install a local APK with --apk /path/to/app.apk --install"
     echo "Using latest successful run: $RUN_ID"
   fi
 
   echo "Downloading the APK artifact..."
-  gh run download "$RUN_ID" --repo "$REPO" \
-    --pattern "$ARTIFACT_PATTERN" --dir "$TMP_DIR"
+  if ! gh_retry gh run download "$RUN_ID" --repo "$REPO" \
+    --pattern "$ARTIFACT_PATTERN" --dir "$TMP_DIR"; then
+    die "could not download the APK from GitHub. Check your connection, or install a local file with: $0 --apk /path/to/app.apk --install"
+  fi
 
   APK=$(find "$TMP_DIR" -type f -name '*.apk' | head -n 1)
   [[ -n "$APK" ]] || die "the artifact did not contain an .apk file"
@@ -164,17 +206,41 @@ if [[ $DO_INSTALL -eq 0 ]]; then
   exit 0
 fi
 
-command -v adb >/dev/null 2>&1 || die \
-  "adb is not installed. Fedora: sudo dnf install android-tools"
+ADB_BIN=$(command -v adb || true)
+if [[ -z "$ADB_BIN" && -x "$HOME/Android/Sdk/platform-tools/adb" ]]; then
+  ADB_BIN="$HOME/Android/Sdk/platform-tools/adb"
+fi
+[[ -n "$ADB_BIN" ]] || die \
+  "adb is not installed. Fedora: sudo dnf install android-tools (or install Android platform-tools)"
 
-ADB=(adb)
+ADB=("$ADB_BIN")
 [[ -n "$SERIAL" ]] && ADB+=(-s "$SERIAL")
 
-if ! "${ADB[@]}" get-state 2>/dev/null | grep -q 'device'; then
+DEVICES_OUTPUT=$("${ADB[@]}" devices 2>/dev/null || true)
+if grep -qE '^[^[:space:]]+[[:space:]]+unauthorized' <<<"$DEVICES_OUTPUT"; then
+  echo "Your phone is connected but USB debugging is not authorized yet."
+  echo "Unlock the phone, tap 'Allow' on the 'Allow USB debugging?' prompt,"
+  echo "and tick 'Always allow from this computer'. Then run this script again."
+  echo
+  echo "If no prompt appears, enable Developer options and USB debugging:"
+  echo "  Settings > About phone > tap Build number 7 times"
+  echo "  Settings > System & updates > Developer options > USB debugging"
+  exit 1
+fi
+
+if ! grep -qE '^[^[:space:]]+[[:space:]]+device' <<<"$DEVICES_OUTPUT"; then
   echo "No Android phone detected. Connect it with a USB cable, unlock it, and"
   echo "accept the 'Allow USB debugging' prompt on the phone."
   echo "Check with: adb devices"
   exit 1
+fi
+
+# Pick the only connected device when --serial was not given.
+if [[ -z "$SERIAL" ]]; then
+  mapfile -t DEVICE_SERIALS < <(awk '$2 == "device" { print $1 }' <<<"$DEVICES_OUTPUT")
+  if [[ ${#DEVICE_SERIALS[@]} -eq 1 ]]; then
+    ADB+=(-s "${DEVICE_SERIALS[0]}")
+  fi
 fi
 
 echo
