@@ -28,6 +28,11 @@ class IngestionResponse {
   final ParseResult? parseResult;
   final TelecomParseResult? telecomResult;
 
+  /// Account whose balance was reconciled from this message, if any. The SMS
+  /// importer uses this to know which accounts had an authoritative balance in
+  /// the scan window.
+  final String? reconciledAccountId;
+
   const IngestionResponse({
     required this.success,
     this.isDuplicate = false,
@@ -38,6 +43,7 @@ class IngestionResponse {
     this.transaction,
     this.parseResult,
     this.telecomResult,
+    this.reconciledAccountId,
   });
 }
 
@@ -145,6 +151,7 @@ class IngestionService {
         isBalanceUpdate: true,
         message: 'Account balance updated to ${parseResult.balance!.format()}',
         parseResult: parseResult,
+        reconciledAccountId: accountId,
       );
     }
 
@@ -161,6 +168,29 @@ class IngestionService {
       return IngestionResponse(
         success: false,
         message: parseResult.failureReason ?? 'Unrecognized message format',
+        parseResult: parseResult,
+      );
+    }
+
+    // 2e. A zero-amount message can never move money. Genuine transaction-like
+    // messages are flagged for review, but no bogus zero-value ledger entry is
+    // created (marketing SMS used to produce -0.00 transactions this way).
+    if (parseResult.amountSantims <= 0) {
+      final needsReview = parseResult.status == ParseStatus.pendingReview;
+      await _logIngestion(
+        sender: sender,
+        snippet: sanitizedSnippet,
+        status: needsReview ? 'pending_review' : 'rejected_non_financial',
+        confidence: parseResult.confidenceScore,
+        error: parseResult.failureReason ??
+            'No positive transaction amount found in message',
+      );
+      return IngestionResponse(
+        success: false,
+        isPendingReview: needsReview,
+        message: needsReview
+            ? 'Transaction-like message had no amount; nothing was recorded.'
+            : 'Non-financial message ignored.',
         parseResult: parseResult,
       );
     }
@@ -182,6 +212,19 @@ class IngestionService {
     );
 
     if (isDup) {
+      // Restored databases already contain the newest balance SMS as a
+      // transaction, so a duplicate must still reconcile the reported balance.
+      String? reconciledAccountId;
+      if (parseResult.balanceSantims != null) {
+        reconciledAccountId = await _resolveAccountId(
+          sender,
+          parseResult.institution,
+        );
+        await _accountRepo.setBalance(
+          reconciledAccountId,
+          parseResult.balanceSantims!,
+        );
+      }
       await _logIngestion(
         sender: sender,
         snippet: sanitizedSnippet,
@@ -193,8 +236,10 @@ class IngestionService {
       return IngestionResponse(
         success: true,
         isDuplicate: true,
+        isBalanceUpdate: reconciledAccountId != null,
         message: 'Transaction already recorded (duplicate delivery)',
         parseResult: parseResult,
+        reconciledAccountId: reconciledAccountId,
       );
     }
 
@@ -264,6 +309,7 @@ class IngestionService {
           : 'Transaction flagged for review due to low parser confidence',
       transaction: tx,
       parseResult: parseResult,
+      reconciledAccountId: parseResult.balanceSantims != null ? accountId : null,
     );
   }
 
@@ -332,6 +378,7 @@ class IngestionService {
     final existingBundle = await _bundleRepo.findActiveBundle(
       provider: telecomResult.provider,
       category: telecomResult.category,
+      asOf: timestamp,
     );
 
     String bundleId;
@@ -348,24 +395,45 @@ class IngestionService {
         activationTime: telecomResult.activationTime ?? timestamp,
         expiryTime: telecomResult.expiryTime,
         purchasePriceSantims: telecomResult.purchasePriceSantims,
+        sourceMessage: rawMessage,
         sourceFingerprint: rawMessage.hashCode.toString(),
         lastConfirmedTime: timestamp,
         confidenceScore: telecomResult.confidenceScore,
         status: 'active',
       );
       await _bundleRepo.saveBundle(newBundle);
+
+      // A newly activated package supersedes older active packages of the same
+      // provider and category.
+      if (telecomResult.isPurchase) {
+        await _bundleRepo.expireActiveBundles(
+          provider: telecomResult.provider,
+          category: telecomResult.category,
+          exceptId: bundleId,
+        );
+      }
     } else {
       bundleId = existingBundle.id;
     }
 
-    // C. Record observation and calculate usage since previous report
-    await _bundleRepo.recordObservation(
-      bundleId: bundleId,
-      remainingAllowance: telecomResult.remainingAllowance,
-      unit: telecomResult.unit,
-      sourceMessage: rawMessage,
-      timestamp: timestamp,
-    );
+    // C. Record observation and calculate usage since previous report.
+    // Unlimited plans have no numeric allowance, so only refresh the
+    // "last confirmed" timestamp and keep them active until their expiry date.
+    if (telecomResult.unit == 'Unlimited') {
+      await _bundleRepo.touchBundle(
+        bundleId,
+        timestamp: timestamp,
+        sourceMessage: rawMessage,
+      );
+    } else {
+      await _bundleRepo.recordObservation(
+        bundleId: bundleId,
+        remainingAllowance: telecomResult.remainingAllowance,
+        unit: telecomResult.unit,
+        sourceMessage: rawMessage,
+        timestamp: timestamp,
+      );
+    }
 
     // D. Log Ingestion
     await _logIngestion(

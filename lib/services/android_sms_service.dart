@@ -252,12 +252,20 @@ class AndroidSmsService {
       // Process oldest-first so balance alerts end on the most recent value.
       scan.messages.sort((a, b) => a.dateMillis.compareTo(b.dateMillis));
 
+      final isFullRescan = includeAlreadySynced;
+      if (isFullRescan && scan.completed) {
+        // Rebuild bundles from the scan window and drop bogus zero-value SMS
+        // transactions left by older parser versions.
+        await appState.prepareForFullSmsRescan();
+      }
+
       var imported = 0;
       var duplicates = 0;
       var balanceUpdates = 0;
       var ignored = 0;
       var scanned = 0;
       int? newestMillis;
+      final reconciledAccounts = <String>{};
 
       for (final message in scan.messages) {
         final dateMillis = message.dateMillis;
@@ -278,6 +286,11 @@ class AndroidSmsService {
           messageTime: messageTime,
           reload: false,
         );
+
+        final reconciledAccountId = response.reconciledAccountId;
+        if (reconciledAccountId != null) {
+          reconciledAccounts.add(reconciledAccountId);
+        }
 
         if (response.isDuplicate) {
           duplicates++;
@@ -310,6 +323,12 @@ class AndroidSmsService {
           AppConstants.keyLastSmsSyncAt,
           cursor.toString(),
         );
+      }
+
+      if (isFullRescan && scan.completed) {
+        // Accounts with no authoritative balance SMS in the completed window
+        // must not keep stale restored balances.
+        await appState.resetStaleSmsBalances(reconciledAccounts);
       }
 
       return SmsImportSummary(

@@ -11,14 +11,36 @@ class CbeParser extends BaseParser {
 
   @override
   bool canParse(String message, String? sender) {
+    final lower = message.toLowerCase();
     if (sender != null) {
       final s = sender.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
-      if (s == 'cbe' || s == '127' || s == 'cbebirr') return true;
-      if (s == 'dashen' || s == 'boa' || s == 'abyssinia' || s == 'telebirr' || s == 'mpesa' || s == 'safaricom' || s == '700') {
+      if (s == 'cbe' || s == 'cbebirr') return true;
+      if (s == '127') {
+        // 127 is shared by CBE and Telebirr. Never let a Telebirr alert be
+        // parsed as a CBE account movement.
+        final looksTelebirr = lower.contains('telebirr') ||
+            message.contains('ቴሌብር') ||
+            lower.contains('ethio telecom') ||
+            lower.contains('transaction number');
+        if (looksTelebirr) return false;
+        return lower.contains('cbe') ||
+            lower.contains('commercial bank of ethiopia') ||
+            message.contains('ንግድ ባንክ') ||
+            (lower.contains('account') &&
+                (lower.contains('debited') ||
+                    lower.contains('credited') ||
+                    lower.contains('current balance')));
+      }
+      if (s == 'dashen' ||
+          s == 'boa' ||
+          s == 'abyssinia' ||
+          s == 'telebirr' ||
+          s == 'mpesa' ||
+          s == 'safaricom' ||
+          s == '700') {
         return false;
       }
     }
-    final lower = message.toLowerCase();
     return lower.contains('cbe') ||
         lower.contains('commercial bank of ethiopia') ||
         lower.contains('የኢትዮጵያ ንግድ ባንክ');
@@ -38,6 +60,7 @@ class CbeParser extends BaseParser {
         !lower.contains('ወጪ') &&
         !lower.contains('ገቢ') &&
         !lower.contains('transferred') &&
+        !lower.contains('transfered') &&
         !lower.contains('withdrawn')) {
       final bal = extractBalance(message);
       return ParseResult(
@@ -65,9 +88,9 @@ class CbeParser extends BaseParser {
       caseSensitive: false,
     );
 
-    // Pattern 3: "transfer of ETB 500.00"
+    // Pattern 3: "transfer of ETB 500.00" / "You have transfered ETB 57,000.00"
     final transferRegex = RegExp(
-      r'transfer\s+of\s+(?:ETB|Birr)?\s*([0-9,]+(?:\.[0-9]{1,2})?)',
+      r'(?:transfer\s+of|transfer(?:r)?ed|sent)\s+(?:ETB|Birr)?\s*([0-9,]+(?:\.[0-9]{1,2})?)',
       caseSensitive: false,
     );
 
@@ -81,11 +104,9 @@ class CbeParser extends BaseParser {
     }
 
     if (amountStr == null) {
-      return ParseResult.failure(
-        institution: institutionName,
-        rawMessage: message,
-        reason: 'Could not extract transaction amount from CBE message',
-        status: ParseStatus.pendingReview,
+      return missingAmountResult(
+        message,
+        'Could not extract transaction amount from CBE message',
       );
     }
 

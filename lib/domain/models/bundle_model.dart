@@ -37,26 +37,32 @@ class TelecomBundleModel {
     this.status = 'active',
   });
 
+  bool get isUnlimited =>
+      unit.toLowerCase() == 'unlimited' || category == 'unlimited';
+
   bool get isExpired {
     if (status == 'expired' || status == 'exhausted') return true;
     if (expiryTime != null && DateTime.now().isAfter(expiryTime!)) return true;
-    if (remainingAllowance <= 0.001) return true;
+    if (!isUnlimited && remainingAllowance <= 0.001) return true;
     return false;
   }
 
-  bool get isExhausted => status == 'exhausted' || remainingAllowance <= 0.001;
+  bool get isExhausted =>
+      status == 'exhausted' || (!isUnlimited && remainingAllowance <= 0.001);
 
   double get percentageRemaining {
+    if (isUnlimited) return 1.0;
     if (originalAllowance <= 0) return 0.0;
     return (remainingAllowance / originalAllowance).clamp(0.0, 1.0);
   }
 
   double get consumedAllowance {
-    if (originalAllowance <= 0) return 0.0;
+    if (isUnlimited || originalAllowance <= 0) return 0.0;
     return (originalAllowance - remainingAllowance).clamp(0.0, originalAllowance);
   }
 
   String get formattedRemaining {
+    if (isUnlimited) return 'Unlimited';
     if (unit == 'GB' || unit == 'MB') {
       return '${remainingAllowance.toStringAsFixed(remainingAllowance.truncateToDouble() == remainingAllowance ? 0 : 2)} $unit';
     } else if (unit == 'minutes') {
@@ -67,6 +73,7 @@ class TelecomBundleModel {
   }
 
   String get formattedAllowance {
+    if (isUnlimited) return 'Unlimited';
     if (unit == 'GB' || unit == 'MB') {
       return '${originalAllowance.toStringAsFixed(originalAllowance.truncateToDouble() == originalAllowance ? 0 : 2)} $unit';
     } else if (unit == 'minutes') {
@@ -80,14 +87,18 @@ class TelecomBundleModel {
     if (expiryTime == null) return 'No expiry date';
     final now = DateTime.now();
     final diff = expiryTime!.difference(now);
-    if (diff.isNegative) return 'Expired';
+    if (diff.isNegative) {
+      return 'Expired ${DateFormat('MMM d, yyyy').format(expiryTime!)}';
+    }
 
-    if (diff.inDays > 1) {
-      return 'Expires in ${diff.inDays} days (${DateFormat('MMM d').format(expiryTime!)})';
+    if (diff.inDays >= 1) {
+      final days = diff.inDays;
+      return 'Expires ${DateFormat('MMM d, yyyy').format(expiryTime!)} '
+          '(in $days day${days == 1 ? '' : 's'})';
     } else if (diff.inHours > 0) {
-      return 'Expires in ${diff.inHours} hrs';
+      return 'Expires today in ${diff.inHours} hr${diff.inHours == 1 ? '' : 's'}';
     } else {
-      return 'Expires in ${diff.inMinutes} mins';
+      return 'Expires in ${diff.inMinutes} min';
     }
   }
 
@@ -239,6 +250,25 @@ class TelecomSummary {
 
   double get totalDataRemainingGb => ethioDataRemainingGb + safaricomDataRemainingGb;
   bool get hasActiveBundles => activeBundles.isNotEmpty;
+
+  bool _isUnlimitedData(TelecomBundleModel bundle) =>
+      bundle.isUnlimited &&
+      bundle.category != 'sms' &&
+      bundle.category != 'voice';
+
+  bool get hasUnlimitedData => activeBundles.any(_isUnlimitedData);
+
+  bool get hasUnlimitedSms =>
+      activeBundles.any((b) => b.isUnlimited && b.category == 'sms');
+
+  bool get ethioHasUnlimitedData => activeBundles.any(
+    (b) =>
+        b.provider.toLowerCase().contains('ethio') && _isUnlimitedData(b),
+  );
+
+  bool get safaricomHasUnlimitedData => activeBundles.any(
+    (b) => b.provider.toLowerCase().contains('safaricom') && _isUnlimitedData(b),
+  );
 
   static const empty = TelecomSummary(
     ethioDataRemainingGb: 0.0,

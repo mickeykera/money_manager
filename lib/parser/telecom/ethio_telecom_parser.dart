@@ -81,6 +81,23 @@ class EthioTelecomParser {
     final isPurchase = TelecomTextUtils.isPurchase(message);
     final isBalanceUpdate = TelecomTextUtils.isBalanceUpdate(message);
 
+    // Unlimited plans have no numeric allowance. They are defined by their
+    // activation and expiry dates instead.
+    if (TelecomTextUtils.isUnlimited(message)) {
+      if (TelecomTextUtils.isExpiryNotice(message) && !isPurchase) {
+        return TelecomParseResult.unrecognized(
+          message,
+          reason: 'Unlimited plan expiry notification, not a new package',
+        );
+      }
+      return _parseUnlimited(
+        message,
+        isPurchase: isPurchase,
+        isBalanceUpdate: isBalanceUpdate,
+        isAmharic: isAmharic,
+      );
+    }
+
     // Extract every allowance form, preferring the value labelled "remaining".
     final dataRemaining = TelecomTextUtils.dataAllowance(
       message,
@@ -174,10 +191,54 @@ class EthioTelecomParser {
       unit: unit,
       purchasePriceSantims: purchasePrice,
       expiryTime: expiry,
-      activationTime: DateTime.now(),
+      activationTime: TelecomTextUtils.activationTime(message) ?? DateTime.now(),
       confidenceScore: isAmharic ? 0.94 : 0.98,
       rawMessage: message,
     );
+  }
+
+  TelecomParseResult _parseUnlimited(
+    String message, {
+    required bool isPurchase,
+    required bool isBalanceUpdate,
+    required bool isAmharic,
+  }) {
+    final category = TelecomTextUtils.unlimitedCategory(message);
+    final planName = TelecomTextUtils.unlimitedPlanName(message);
+    final expiry = TelecomTextUtils.expiryTime(message);
+    final activation = TelecomTextUtils.activationTime(message);
+
+    return TelecomParseResult(
+      isRecognized: true,
+      provider: AppConstants.providerEthioTelecom,
+      bundleName: planName ?? _defaultUnlimitedName(category, message),
+      category: category,
+      isPurchase: isPurchase,
+      isBalanceUpdate: isBalanceUpdate,
+      originalAllowance: 0,
+      remainingAllowance: 0,
+      unit: 'Unlimited',
+      purchasePriceSantims: isPurchase
+          ? TelecomTextUtils.purchasePriceSantims(message)
+          : null,
+      expiryTime: expiry,
+      activationTime: activation,
+      confidenceScore: isAmharic ? 0.93 : 0.97,
+      rawMessage: message,
+    );
+  }
+
+  String _defaultUnlimitedName(String category, String message) {
+    if (category == AppConstants.bundleCategorySms) return 'Unlimited SMS';
+    if (category == AppConstants.bundleCategoryVoice) return 'Unlimited Voice';
+    final lower = message.toLowerCase();
+    if (lower.contains('monthly') || message.contains('ወርሃዊ')) {
+      return 'Monthly Unlimited Internet';
+    }
+    if (lower.contains('weekly') || message.contains('ሳምንታዊ')) {
+      return 'Weekly Unlimited Internet';
+    }
+    return 'Unlimited Internet';
   }
 
   String _categoryFor(String message, String unit) {

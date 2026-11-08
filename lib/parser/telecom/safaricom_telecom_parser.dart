@@ -68,6 +68,32 @@ class SafaricomTelecomParser {
     final isPurchase = TelecomTextUtils.isPurchase(message);
     final isBalanceUpdate = TelecomTextUtils.isBalanceUpdate(message);
 
+    // Airtime recharge receipts mention data packages in their marketing text
+    // ("To get 200GB ... dial ..."). They are not bundle purchases.
+    final lower = message.toLowerCase();
+    if (lower.contains('recharge of') &&
+        lower.contains('balance:') &&
+        !lower.contains('purchased')) {
+      return TelecomParseResult.unrecognized(
+        message,
+        reason: 'Airtime recharge receipt, not a bundle purchase',
+      );
+    }
+
+    if (TelecomTextUtils.isUnlimited(message)) {
+      if (TelecomTextUtils.isExpiryNotice(message) && !isPurchase) {
+        return TelecomParseResult.unrecognized(
+          message,
+          reason: 'Unlimited plan expiry notification, not a new package',
+        );
+      }
+      return _parseUnlimited(
+        message,
+        isPurchase: isPurchase,
+        isBalanceUpdate: isBalanceUpdate,
+      );
+    }
+
     final dataRemaining = TelecomTextUtils.dataAllowance(
       message,
       remainingOnly: true,
@@ -158,10 +184,49 @@ class SafaricomTelecomParser {
       unit: unit,
       purchasePriceSantims: purchasePrice,
       expiryTime: expiry,
-      activationTime: DateTime.now(),
+      activationTime: TelecomTextUtils.activationTime(message) ?? DateTime.now(),
       confidenceScore: 0.98,
       rawMessage: message,
     );
+  }
+
+  TelecomParseResult _parseUnlimited(
+    String message, {
+    required bool isPurchase,
+    required bool isBalanceUpdate,
+  }) {
+    final category = TelecomTextUtils.unlimitedCategory(message);
+    final planName = TelecomTextUtils.unlimitedPlanName(message);
+    final expiry = TelecomTextUtils.expiryTime(message);
+    final activation = TelecomTextUtils.activationTime(message);
+
+    return TelecomParseResult(
+      isRecognized: true,
+      provider: AppConstants.providerSafaricom,
+      bundleName: planName ?? _defaultUnlimitedName(category, message),
+      category: category,
+      isPurchase: isPurchase,
+      isBalanceUpdate: isBalanceUpdate,
+      originalAllowance: 0,
+      remainingAllowance: 0,
+      unit: 'Unlimited',
+      purchasePriceSantims: isPurchase
+          ? TelecomTextUtils.purchasePriceSantims(message)
+          : null,
+      expiryTime: expiry,
+      activationTime: activation,
+      confidenceScore: 0.97,
+      rawMessage: message,
+    );
+  }
+
+  String _defaultUnlimitedName(String category, String message) {
+    if (category == AppConstants.bundleCategorySms) return 'Unlimited SMS';
+    if (category == AppConstants.bundleCategoryVoice) return 'Unlimited Voice';
+    final lower = message.toLowerCase();
+    if (lower.contains('monthly')) return 'Monthly Unlimited Internet';
+    if (lower.contains('weekly')) return 'Weekly Unlimited Internet';
+    return 'Safaricom Unlimited Internet';
   }
 
   String _categoryFor(String message, String unit) {

@@ -65,6 +65,43 @@ class AccountRepository {
     );
   }
 
+  /// Clears stale restored balances from SMS-linked accounts that had no
+  /// authoritative balance message in the completed scan window.
+  ///
+  /// [updatedAccountIds] contains every account whose balance was reconciled by
+  /// an SMS during the scan. Only SMS-linked accounts are touched so manual
+  /// balances such as "Cash in Hand" survive.
+  Future<void> resetSmsLinkedBalancesExcept(
+    Set<String> updatedAccountIds, {
+    String source = 'No balance SMS in the last 12 months',
+  }) async {
+    final db = await _dbHelper.database;
+    final rows = await db.query(
+      'accounts',
+      columns: ['id'],
+      where: 'is_sms_linked = ?',
+      whereArgs: [1],
+    );
+
+    final staleIds = rows
+        .map((row) => row['id'] as String)
+        .where((id) => !updatedAccountIds.contains(id))
+        .toList();
+    if (staleIds.isEmpty) return;
+
+    final placeholders = List.filled(staleIds.length, '?').join(',');
+    await db.update(
+      'accounts',
+      {
+        'balance_santims': 0,
+        'balance_source': source,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      where: 'id IN ($placeholders)',
+      whereArgs: staleIds,
+    );
+  }
+
   /// Recalculates balance from all transactions
   Future<int> recalculateBalance(String accountId) async {
     final db = await _dbHelper.database;

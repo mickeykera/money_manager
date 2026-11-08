@@ -116,6 +116,15 @@ class AppState extends ChangeNotifier {
       _themeMode = ThemeMode.system;
     }
 
+    // Remove bogus zero-value SMS transactions left by older parser versions
+    // and mark bundles whose expiry date has passed as expired.
+    try {
+      await _transactionRepo.deleteZeroAmountSmsTransactions();
+      await _bundleRepo.expireOutdatedBundles();
+    } catch (_) {
+      // Startup cleanup is best-effort; never block the app from opening.
+    }
+
     await reloadAll();
     _isLoading = false;
     notifyListeners();
@@ -206,6 +215,22 @@ class AppState extends ChangeNotifier {
       await reloadAll();
     }
     return response;
+  }
+
+  /// Prepares for a completed full SMS rescan: clears bogus zero-value SMS
+  /// transactions and rebuilds telecom bundles from the messages in the scan
+  /// window so stale restored bundles cannot linger.
+  Future<void> prepareForFullSmsRescan() async {
+    await _transactionRepo.deleteZeroAmountSmsTransactions();
+    await _bundleRepo.clearAllBundles();
+  }
+
+  /// Resets SMS-linked accounts that had no authoritative balance message in a
+  /// completed full rescan. This clears stale restored balances (e.g. BOA data
+  /// from a message outside the 12-month window).
+  Future<void> resetStaleSmsBalances(Set<String> updatedAccountIds) async {
+    await _accountRepo.resetSmsLinkedBalancesExcept(updatedAccountIds);
+    await reloadAll();
   }
 
   Future<void> recordTelecomObservation({

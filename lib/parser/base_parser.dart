@@ -13,6 +13,45 @@ abstract class BaseParser {
   /// Executes parsing on the message
   ParseResult parse(String message, String? sender);
 
+  /// True when the text describes an actual money movement rather than a
+  /// marketing message. Used to decide whether a message with a missing amount
+  /// should be queued for review or discarded as non-financial noise.
+  bool looksLikeTransaction(String message) {
+    final lower = message.toLowerCase();
+    if (_transactionVerbPattern.hasMatch(lower)) return true;
+    return message.contains('ተቀንሷል') ||
+        message.contains('ተጨምሯል') ||
+        message.contains('ተከፍሏል') ||
+        message.contains('ተቀብለዋል') ||
+        message.contains('ከፍለዋል') ||
+        message.contains('አስተላልፈዋል') ||
+        message.contains('አውጥተዋል') ||
+        message.contains('ወጪ') ||
+        message.contains('ገቢ');
+  }
+
+  static final RegExp _transactionVerbPattern = RegExp(
+    r'\b(debited|credited|debit|credit|paid|payment|transferred|transfered|'
+    r'withdrawn|withdrawal|deposit(?:ed)?|spent|charged|deducted|'
+    r'purchased|bought|recharged|received|sent|subscribed|renewed|'
+    r'topped?\s*up|top\s*up)\b',
+    caseSensitive: false,
+  );
+
+  /// Builds the right failure status when an amount could not be extracted:
+  /// genuine transaction-like messages stay in the review queue, while
+  /// promotional/marketing SMS are dropped as non-financial.
+  ParseResult missingAmountResult(String message, String reason) {
+    return ParseResult.failure(
+      institution: institutionName,
+      rawMessage: message,
+      reason: reason,
+      status: looksLikeTransaction(message)
+          ? ParseStatus.pendingReview
+          : ParseStatus.rejectedNonFinancial,
+    );
+  }
+
   /// Helper to check common security filters
   ParseResult? checkCommonFilters(String message) {
     if (OtpFilter.isOtp(message)) {
@@ -112,6 +151,7 @@ abstract class BaseParser {
       return AppConstants.typeIncome;
     }
     if (lower.contains('transferred') ||
+        lower.contains('transfered') ||
         lower.contains('transfer to') ||
         lower.contains('አስተላልፈዋል')) {
       return AppConstants.typeTransfer;

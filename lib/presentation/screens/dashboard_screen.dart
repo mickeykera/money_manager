@@ -442,7 +442,16 @@ class DashboardScreen extends StatelessWidget {
 
   Widget _buildTelecomCard(BuildContext context, dynamic telecom, bool isDark) {
     final totalGb = (telecom.ethioDataRemainingGb + telecom.safaricomDataRemainingGb) as double;
+    final hasUnlimited = telecom.hasUnlimitedData as bool;
     final expiry = telecom.nextKnownExpiry as DateTime?;
+    final expiryLabel = expiry != null
+        ? ' · Expires ${DateFormat('MMM d, yyyy').format(expiry)}'
+        : '';
+    final summaryText = hasUnlimited
+        ? 'Unlimited data$expiryLabel'
+        : totalGb > 0
+            ? '${totalGb.toStringAsFixed(1)} GB remaining$expiryLabel'
+            : 'No active package reported';
 
     return InkWell(
       onTap: () {
@@ -484,9 +493,7 @@ class DashboardScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    totalGb > 0
-                        ? '${totalGb.toStringAsFixed(1)} GB remaining ${expiry != null ? "· Expires ${DateFormat('MMM d').format(expiry)}" : ""}'
-                        : 'No active package reported',
+                    summaryText,
                     style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                 ],

@@ -109,7 +109,9 @@ class _BundlesScreenState extends State<BundlesScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final summary = widget.appState.telecomSummary;
-    final bundles = widget.appState.bundles;
+    final bundles = widget.appState.bundles
+        .where((bundle) => !bundle.isExpired)
+        .toList();
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBg : AppColors.offWhiteBg,
@@ -167,7 +169,11 @@ class _BundlesScreenState extends State<BundlesScreen> {
                   textBaseline: TextBaseline.alphabetic,
                   children: [
                     Text(
-                      (summary.ethioDataRemainingGb + summary.safaricomDataRemainingGb).toStringAsFixed(2),
+                      summary.hasUnlimitedData
+                          ? 'Unlimited'
+                          : (summary.ethioDataRemainingGb +
+                                    summary.safaricomDataRemainingGb)
+                                .toStringAsFixed(2),
                       style: const TextStyle(
                         fontSize: 34,
                         fontWeight: FontWeight.w700,
@@ -176,9 +182,9 @@ class _BundlesScreenState extends State<BundlesScreen> {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    const Text(
-                      'GB Total',
-                      style: TextStyle(
+                    Text(
+                      summary.hasUnlimitedData ? 'Data' : 'GB Total',
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: AppColors.forestGreenSubtext,
@@ -203,7 +209,9 @@ class _BundlesScreenState extends State<BundlesScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '${summary.ethioDataRemainingGb.toStringAsFixed(2)} GB',
+                            summary.ethioHasUnlimitedData
+                                ? 'Unlimited'
+                                : '${summary.ethioDataRemainingGb.toStringAsFixed(2)} GB',
                             style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
                           ),
                         ],
@@ -221,7 +229,9 @@ class _BundlesScreenState extends State<BundlesScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '${summary.safaricomDataRemainingGb.toStringAsFixed(2)} GB',
+                            summary.safaricomHasUnlimitedData
+                                ? 'Unlimited'
+                                : '${summary.safaricomDataRemainingGb.toStringAsFixed(2)} GB',
                             style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
                           ),
                         ],
@@ -329,14 +339,15 @@ class _BundlesScreenState extends State<BundlesScreen> {
   }
 
   Widget _buildBundleCard(BuildContext context, TelecomBundleModel bundle, bool isDark) {
-    final progress = bundle.originalAllowance > 0
-        ? (bundle.remainingAllowance / bundle.originalAllowance).clamp(0.0, 1.0)
-        : 1.0;
+    final progress = bundle.percentageRemaining;
 
     final isEthio = bundle.provider.toLowerCase().contains('ethio');
     final expiryStr = bundle.expiryTime != null
         ? DateFormat('MMM d, yyyy').format(bundle.expiryTime!)
         : 'No expiry';
+    final expiryLabel = bundle.isUnlimited
+        ? bundle.expiryFormatted
+        : 'Valid until $expiryStr';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -426,7 +437,9 @@ class _BundlesScreenState extends State<BundlesScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '${bundle.remainingAllowance} ${bundle.unit} remaining',
+                bundle.isUnlimited
+                    ? 'Unlimited'
+                    : '${bundle.formattedRemaining} remaining',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -434,25 +447,29 @@ class _BundlesScreenState extends State<BundlesScreen> {
                 ),
               ),
               Text(
-                'of ${bundle.originalAllowance} ${bundle.unit}',
+                bundle.isUnlimited
+                    ? 'Fair usage applies'
+                    : 'of ${bundle.formattedAllowance}',
                 style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          if (!bundle.isUnlimited) ...[
+            const SizedBox(height: 6),
 
-          // Progress Bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: isDark ? const Color(0xFF2C332D) : const Color(0xFFEBEAE4),
-              valueColor: AlwaysStoppedAnimation<Color>(
-                progress > 0.25 ? AppColors.forestGreen : AppColors.expenseClay,
+            // Progress Bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 8,
+                backgroundColor: isDark ? const Color(0xFF2C332D) : const Color(0xFFEBEAE4),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  progress > 0.25 ? AppColors.forestGreen : AppColors.expenseClay,
+                ),
               ),
             ),
-          ),
+          ],
           const SizedBox(height: 12),
 
           // Expiry and Action Row
@@ -464,7 +481,7 @@ class _BundlesScreenState extends State<BundlesScreen> {
                   const Icon(Icons.timer_outlined, size: 14, color: AppColors.textSecondary),
                   const SizedBox(width: 5),
                   Text(
-                    'Valid until $expiryStr',
+                    expiryLabel,
                     style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                 ],

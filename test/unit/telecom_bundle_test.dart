@@ -6,6 +6,7 @@ import 'package:ledgerleaf/data/repositories/bundle_repository.dart';
 import 'package:ledgerleaf/data/repositories/settings_repository.dart';
 import 'package:ledgerleaf/data/repositories/transaction_repository.dart';
 import 'package:ledgerleaf/domain/models/bundle_model.dart';
+import 'package:ledgerleaf/domain/models/filter_criteria.dart';
 import 'package:ledgerleaf/parser/telecom/ethio_telecom_parser.dart';
 import 'package:ledgerleaf/parser/telecom/safaricom_telecom_parser.dart';
 import 'package:ledgerleaf/services/ingestion_service.dart';
@@ -139,6 +140,75 @@ void main() {
         expect(result.unit, equals('GB'));
       },
     );
+
+    test('parses the Monthly Unlimited Premium Internet activation', () {
+      const sms =
+          'Dear customer, you have successfully activated the new service '
+          'offer Monthly Unlimited Premium Internet plan effective as of '
+          'Oct 16, 2026 6:09:08 PM and will be expired on '
+          'Nov 15, 2026 6:09:08 PM.';
+      final result = parser.parse(sms, '994');
+
+      expect(result.isRecognized, isTrue);
+      expect(result.provider, equals(AppConstants.providerEthioTelecom));
+      expect(result.isPurchase, isTrue);
+      expect(result.unit, equals('Unlimited'));
+      expect(result.originalAllowance, equals(0));
+      expect(result.remainingAllowance, equals(0));
+      expect(result.category, equals(AppConstants.bundleCategoryUnlimited));
+      expect(result.bundleName, equals('Monthly Unlimited Premium Internet'));
+
+      expect(result.activationTime, isNotNull);
+      expect(result.activationTime!.year, 2026);
+      expect(result.activationTime!.month, 10);
+      expect(result.activationTime!.day, 16);
+      expect(result.activationTime!.hour, 18);
+      expect(result.activationTime!.minute, 9);
+      expect(result.activationTime!.second, 8);
+
+      expect(result.expiryTime, isNotNull);
+      expect(result.expiryTime!.year, 2026);
+      expect(result.expiryTime!.month, 11);
+      expect(result.expiryTime!.day, 15);
+      expect(result.expiryTime!.hour, 18);
+      expect(result.expiryTime!.minute, 9);
+      expect(result.expiryTime!.second, 8);
+    });
+
+    test('unlimited reminder is an update, not a new package', () {
+      const sms =
+          'Dear customer, Your Monthly Unlimited Premium Internet plan to be '
+          'expired after 30 days will expire after 1 day on 2026-10-16 at '
+          '17:00:12.';
+      final result = parser.parse(sms, '994');
+
+      expect(result.isRecognized, isTrue);
+      expect(result.isPurchase, isFalse);
+      expect(result.unit, equals('Unlimited'));
+      expect(result.expiryTime, isNotNull);
+      expect(result.expiryTime!.year, 2026);
+      expect(result.expiryTime!.month, 10);
+      expect(result.expiryTime!.day, 16);
+    });
+
+    test('unlimited SMS plans use the sms category', () {
+      const sms =
+          'Dear customer, you have activated an Unlimited SMS monthly plan '
+          'valid until 2026-11-15.';
+      final result = parser.parse(sms, '994');
+
+      expect(result.isRecognized, isTrue);
+      expect(result.unit, equals('Unlimited'));
+      expect(result.category, equals(AppConstants.bundleCategorySms));
+    });
+
+    test('expiry notification is not treated as a new activation', () {
+      const sms =
+          'Dear customer, your Unlimited Internet package has expired.';
+      final result = parser.parse(sms, '994');
+
+      expect(result.isRecognized, isFalse);
+    });
   });
 
   group('SafaricomTelecomParser Tests', () {
@@ -229,6 +299,35 @@ void main() {
       expect(result.originalAllowance, equals(3.0));
       expect(result.unit, equals('GB'));
       expect(result.purchasePriceSantims, equals(12000));
+    });
+
+    test('parses the Wullo Unlimited Internet purchase', () {
+      const sms =
+          'You have successfully purchased Wullo Unlimited Internet for '
+          'Br.60 valid from 6AM to 6PM during the day. '
+          'Expiry date: 16-10-2026 18:00:00';
+      final result = parser.parse(sms, '700');
+
+      expect(result.isRecognized, isTrue);
+      expect(result.provider, equals(AppConstants.providerSafaricom));
+      expect(result.isPurchase, isTrue);
+      expect(result.unit, equals('Unlimited'));
+      expect(result.category, equals(AppConstants.bundleCategoryUnlimited));
+      expect(result.bundleName, equals('Wullo Unlimited Internet'));
+      expect(result.purchasePriceSantims, equals(6000));
+      expect(result.expiryTime, isNotNull);
+      expect(result.expiryTime!.year, 2026);
+      expect(result.expiryTime!.month, 10);
+      expect(result.expiryTime!.day, 16);
+    });
+
+    test('airtime recharge receipt is not a bundle purchase', () {
+      const sms =
+          'Recharge of Br. 10.00 was successful. Balance: Br. 69.00. '
+          'To get 200GB and 500GB MEGA internet packages dial *704#.';
+      final result = parser.parse(sms, '700');
+
+      expect(result.isRecognized, isFalse);
     });
   });
 
@@ -391,6 +490,88 @@ void main() {
         summary.nextKnownExpiry!.day,
         equals(now.add(const Duration(days: 5)).day),
       );
+    });
+
+    test('unlimited bundles stay active with zero allowance until expiry', () {
+      final now = DateTime.now();
+      final bundle = TelecomBundleModel(
+        id: 'ethio_unlimited',
+        provider: AppConstants.providerEthioTelecom,
+        bundleName: 'Monthly Unlimited Premium Internet',
+        category: AppConstants.bundleCategoryUnlimited,
+        originalAllowance: 0,
+        remainingAllowance: 0,
+        unit: 'Unlimited',
+        activationTime: now.subtract(const Duration(days: 2)),
+        expiryTime: now.add(const Duration(days: 20)),
+        lastConfirmedTime: now,
+      );
+
+      expect(bundle.isUnlimited, isTrue);
+      expect(bundle.isExpired, isFalse);
+      expect(bundle.isExhausted, isFalse);
+      expect(bundle.percentageRemaining, equals(1.0));
+      expect(bundle.formattedRemaining, equals('Unlimited'));
+      expect(bundle.formattedAllowance, equals('Unlimited'));
+      expect(bundle.expiryFormatted, contains('Expires'));
+    });
+
+    test('unlimited bundles expire once the expiry date passes', () {
+      final now = DateTime.now();
+      final bundle = TelecomBundleModel(
+        id: 'ethio_expired',
+        provider: AppConstants.providerEthioTelecom,
+        bundleName: 'Monthly Unlimited Premium Internet',
+        category: AppConstants.bundleCategoryUnlimited,
+        originalAllowance: 0,
+        remainingAllowance: 0,
+        unit: 'Unlimited',
+        expiryTime: now.subtract(const Duration(minutes: 1)),
+        lastConfirmedTime: now,
+      );
+
+      expect(bundle.isExpired, isTrue);
+      expect(bundle.expiryFormatted, contains('Expired'));
+    });
+
+    test('getTelecomSummary flags unlimited data and SMS plans', () async {
+      final now = DateTime.now();
+      await bundleRepo.saveBundle(
+        TelecomBundleModel(
+          id: 'ethio_unlimited_data',
+          provider: AppConstants.providerEthioTelecom,
+          bundleName: 'Monthly Unlimited Premium Internet',
+          category: AppConstants.bundleCategoryUnlimited,
+          originalAllowance: 0,
+          remainingAllowance: 0,
+          unit: 'Unlimited',
+          expiryTime: now.add(const Duration(days: 20)),
+          lastConfirmedTime: now,
+        ),
+      );
+      await bundleRepo.saveBundle(
+        TelecomBundleModel(
+          id: 'ethio_unlimited_sms',
+          provider: AppConstants.providerEthioTelecom,
+          bundleName: 'Unlimited SMS',
+          category: AppConstants.bundleCategorySms,
+          originalAllowance: 0,
+          remainingAllowance: 0,
+          unit: 'Unlimited',
+          expiryTime: now.add(const Duration(days: 20)),
+          lastConfirmedTime: now,
+        ),
+      );
+
+      final summary = await bundleRepo.getTelecomSummary();
+      expect(summary.activeBundles.length, equals(2));
+      expect(summary.hasUnlimitedData, isTrue);
+      expect(summary.hasUnlimitedSms, isTrue);
+      expect(summary.ethioHasUnlimitedData, isTrue);
+      expect(summary.safaricomHasUnlimitedData, isFalse);
+      // Unlimited plans must not be summed as numeric GB/SMS allowances.
+      expect(summary.totalDataRemainingGb, equals(0.0));
+      expect(summary.totalSmsRemaining, equals(0));
     });
   });
 
@@ -581,6 +762,88 @@ void main() {
       final bundles = await bundleRepo.getAllBundles();
       expect(bundles.isNotEmpty, isTrue);
       expect(bundles.first.remainingAllowance, equals(7.20));
+    });
+
+    test('unlimited activation stores plan type and expiry without a charge', () async {
+      const sms =
+          'Dear customer, you have successfully activated the new service '
+          'offer Monthly Unlimited Premium Internet plan effective as of '
+          'Oct 16, 2026 6:09:08 PM and will be expired on '
+          'Nov 15, 2026 6:09:08 PM.';
+      final res = await ingestionService.processIncomingSms(
+        rawMessage: sms,
+        sender: '994',
+      );
+
+      expect(res.success, isTrue);
+      expect(res.isTelecomUpdate, isTrue);
+      // No price in the activation SMS, so no financial transaction.
+      expect(res.transaction, isNull);
+      expect(await txRepo.getTransactions(const FilterCriteria()), isEmpty);
+
+      final bundles = await bundleRepo.getAllBundles();
+      expect(bundles.length, equals(1));
+      final bundle = bundles.first;
+      expect(bundle.unit, equals('Unlimited'));
+      expect(bundle.category, equals(AppConstants.bundleCategoryUnlimited));
+      expect(
+        bundle.bundleName,
+        equals('Monthly Unlimited Premium Internet'),
+      );
+      expect(bundle.status, equals('active'));
+      expect(bundle.expiryTime, isNotNull);
+      expect(bundle.expiryTime!.year, 2026);
+      expect(bundle.expiryTime!.month, 11);
+      expect(bundle.expiryTime!.day, 15);
+      expect(bundle.expiryTime!.hour, 18);
+      expect(bundle.expiryTime!.minute, 9);
+    });
+
+    test('a newer unlimited package supersedes the previous one', () async {
+      const first =
+          'Dear customer, you have activated an Unlimited Internet monthly '
+          'plan effective as of Oct 16, 2026 6:09:08 PM and will be expired '
+          'on Nov 15, 2026 6:09:08 PM.';
+      const second =
+          'Dear customer, you have activated an Unlimited Internet monthly '
+          'plan effective as of Nov 15, 2026 6:10:00 PM and will be expired '
+          'on Dec 15, 2026 6:10:00 PM.';
+
+      await ingestionService.processIncomingSms(
+        rawMessage: first,
+        sender: '994',
+        messageTime: DateTime(2026, 10, 16, 18, 9, 8),
+      );
+      await ingestionService.processIncomingSms(
+        rawMessage: second,
+        sender: '994',
+        messageTime: DateTime(2026, 11, 15, 18, 10),
+      );
+
+      final bundles = await bundleRepo.getAllBundles();
+      final active = bundles.where((b) => b.status == 'active').toList();
+      expect(active.length, equals(1));
+      expect(active.first.expiryTime!.month, equals(12));
+      expect(
+        bundles.where((b) => b.status == 'expired').length,
+        equals(1),
+      );
+    });
+
+    test('airtime recharge receipt creates no bundle or transaction', () async {
+      const sms =
+          'Recharge of Br. 10.00 was successful. Balance: Br. 69.00. '
+          'To get 200GB and 500GB MEGA internet packages dial *704#.';
+      final res = await ingestionService.processIncomingSms(
+        rawMessage: sms,
+        sender: '700',
+      );
+
+      expect(res.success, isFalse);
+      expect(res.isTelecomUpdate, isFalse);
+      expect(res.transaction, isNull);
+      expect(await bundleRepo.getAllBundles(), isEmpty);
+      expect(await txRepo.getTransactions(const FilterCriteria()), isEmpty);
     });
   });
 }

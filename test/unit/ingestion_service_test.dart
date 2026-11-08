@@ -302,5 +302,164 @@ void main() {
       expect(res.success, isTrue);
       expect(res.transaction?.amountSantims, 8000);
     });
+
+    test('real CBE alert records the debit and reconciles 723.27', () async {
+      const msg =
+          'Dear Mr Michael your Account 1********1189 has been debited with '
+          'ETB 200.85 including Service charge ETB0.70ETB0.04 and VAT(15%) '
+          'ETB0.11. Your Current Balance is ETB 723.27.';
+      final res = await ingestionService.processIncomingSms(
+        rawMessage: msg,
+        sender: 'CBE',
+        messageTime: DateTime(2026, 5, 9, 17, 47),
+      );
+
+      expect(res.success, isTrue);
+      expect(res.transaction?.amountSantims, 20085);
+      expect(res.reconciledAccountId, 'acc_cbe');
+      final acc = await accountRepo.getAccountById('acc_cbe');
+      expect(acc?.balanceSantims, 72327);
+    });
+
+    test('real Telebirr alert from sender 127 updates the wallet', () async {
+      const msg =
+          'You have transferred ETB 3,500.00 to Mr Yared on 09/05/2026 at '
+          '16:56:00. Transaction number is TB260509.1656.A12345. '
+          'Your current balance is ETB 2,087.47.';
+      final res = await ingestionService.processIncomingSms(
+        rawMessage: msg,
+        sender: '127',
+        messageTime: DateTime(2026, 5, 9, 16, 56),
+      );
+
+      expect(res.success, isTrue);
+      expect(res.transaction?.accountId, 'acc_telebirr');
+      expect(res.transaction?.amountSantims, 350000);
+      final acc = await accountRepo.getAccountById('acc_telebirr');
+      expect(acc?.balanceSantims, 208747);
+    });
+
+    test('pure balance SMS reconciles without creating a transaction', () async {
+      const msg = 'Dear Customer, your Current Balance is ETB 723.27.';
+      final res = await ingestionService.processIncomingSms(
+        rawMessage: msg,
+        sender: 'CBE',
+      );
+
+      expect(res.success, isTrue);
+      expect(res.isBalanceUpdate, isTrue);
+      expect(res.transaction, isNull);
+      expect(res.reconciledAccountId, 'acc_cbe');
+      expect(await txRepo.getTransactions(const FilterCriteria()), isEmpty);
+
+      final acc = await accountRepo.getAccountById('acc_cbe');
+      expect(acc?.balanceSantims, 72327);
+    });
+
+    test('duplicate balance SMS still reconciles a restored database', () async {
+      const msg =
+          'You have transferred ETB 3,500.00 to Mr Yared on 09/05/2026 at '
+          '16:56:00. Transaction number is TB260509.1656.A12345. '
+          'Your current balance is ETB 2,087.47.';
+      final time = DateTime(2026, 5, 9, 16, 56);
+
+      final first = await ingestionService.processIncomingSms(
+        rawMessage: msg,
+        sender: '127',
+        messageTime: time,
+      );
+      expect(first.isDuplicate, isFalse);
+
+      // Simulate a restored database whose balance is stale.
+      await accountRepo.setBalance('acc_telebirr', 0);
+
+      final second = await ingestionService.processIncomingSms(
+        rawMessage: msg,
+        sender: '127',
+        messageTime: time,
+      );
+      expect(second.isDuplicate, isTrue);
+      expect(second.reconciledAccountId, 'acc_telebirr');
+
+      final acc = await accountRepo.getAccountById('acc_telebirr');
+      expect(acc?.balanceSantims, 208747);
+    });
+
+    test('zero-amount marketing SMS creates no ledger entry', () async {
+      const msg =
+          'Dear customer, enjoy our new internet offers. Dial *804# to '
+          'subscribe and get more data.';
+      final res = await ingestionService.processIncomingSms(
+        rawMessage: msg,
+        sender: '127',
+      );
+
+      expect(res.success, isFalse);
+      expect(res.isPendingReview, isFalse);
+      expect(await txRepo.getTransactions(const FilterCriteria()), isEmpty);
+    });
+
+    test('deleteZeroAmountSmsTransactions removes only bogus SMS rows', () async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await db.insert('transactions', {
+        'id': 'tx_zero',
+        'amount_santims': 0,
+        'currency': 'ETB',
+        'type': 'expense',
+        'merchant': 'Promo',
+        'timestamp': now,
+        'timezone_offset_minutes': 180,
+        'category_id': 'cat_other',
+        'account_id': 'acc_cbe',
+        'source': AppConstants.sourceSms,
+        'import_status': AppConstants.statusPendingReview,
+        'is_reviewed': 0,
+        'created_at': now,
+        'updated_at': now,
+      });
+      await db.insert('transactions', {
+        'id': 'tx_real',
+        'amount_santims': 5000,
+        'currency': 'ETB',
+        'type': 'expense',
+        'merchant': 'Shop',
+        'timestamp': now,
+        'timezone_offset_minutes': 180,
+        'category_id': 'cat_other',
+        'account_id': 'acc_cbe',
+        'source': AppConstants.sourceSms,
+        'import_status': AppConstants.statusPosted,
+        'is_reviewed': 1,
+        'created_at': now,
+        'updated_at': now,
+      });
+
+      final removed = await txRepo.deleteZeroAmountSmsTransactions();
+      expect(removed, equals(1));
+
+      final remaining = await txRepo.getTransactions(const FilterCriteria());
+      expect(remaining.length, equals(1));
+      expect(remaining.first.id, equals('tx_real'));
+    });
+
+    test('resetSmsLinkedBalancesExcept clears only stale linked accounts', () async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await db.insert('accounts', {
+        'id': 'acc_cash',
+        'name': 'Cash in Hand',
+        'type': 'cash',
+        'balance_santims': 10000,
+        'currency': 'ETB',
+        'is_sms_linked': 0,
+        'created_at': now,
+        'updated_at': now,
+      });
+
+      await accountRepo.resetSmsLinkedBalancesExcept({'acc_cbe'});
+
+      expect((await accountRepo.getAccountById('acc_cbe'))?.balanceSantims, 500000);
+      expect((await accountRepo.getAccountById('acc_telebirr'))?.balanceSantims, 0);
+      expect((await accountRepo.getAccountById('acc_cash'))?.balanceSantims, 10000);
+    });
   });
 }

@@ -42,9 +42,10 @@ class BundleRepository {
   Future<TelecomBundleModel?> findActiveBundle({
     required String provider,
     required String category,
+    DateTime? asOf,
   }) async {
     final db = await _dbHelper.database;
-    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final nowMs = (asOf ?? DateTime.now()).millisecondsSinceEpoch;
     final rows = await db.query(
       'telecom_bundles',
       where: 'provider = ? AND category = ? AND status = ? AND (expiry_time IS NULL OR expiry_time > ?)',
@@ -54,6 +55,71 @@ class BundleRepository {
     );
     if (rows.isEmpty) return null;
     return TelecomBundleModel.fromMap(rows.first);
+  }
+
+  /// Marks any still-active bundle of the same provider/category as superseded
+  /// when a newer package is activated. A package whose expiry has just passed
+  /// may still be stored as active, so the date is not used to exclude it.
+  Future<void> expireActiveBundles({
+    required String provider,
+    required String category,
+    String? exceptId,
+  }) async {
+    final db = await _dbHelper.database;
+    final where = StringBuffer('provider = ? AND category = ? AND status = ?');
+    final args = <Object?>[provider, category, 'active'];
+    if (exceptId != null) {
+      where.write(' AND id != ?');
+      args.add(exceptId);
+    }
+    await db.update(
+      'telecom_bundles',
+      {'status': 'expired'},
+      where: where.toString(),
+      whereArgs: args,
+    );
+  }
+
+  /// Marks bundles whose expiry date has passed as expired.
+  Future<void> expireOutdatedBundles() async {
+    final db = await _dbHelper.database;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    await db.update(
+      'telecom_bundles',
+      {'status': 'expired'},
+      where: 'status = ? AND expiry_time IS NOT NULL AND expiry_time <= ?',
+      whereArgs: ['active', nowMs],
+    );
+  }
+
+  /// Removes every tracked bundle/observation. Used before a completed full SMS
+  /// rescan so bundles are rebuilt only from messages inside the scan window.
+  Future<void> clearAllBundles() async {
+    final db = await _dbHelper.database;
+    await db.delete('telecom_observations');
+    await db.delete('telecom_bundles');
+  }
+
+  /// Refreshes "last confirmed" for a plan without recording an allowance
+  /// observation. Used for unlimited packages, which have no numeric balance.
+  Future<void> touchBundle(
+    String bundleId, {
+    DateTime? timestamp,
+    String? sourceMessage,
+  }) async {
+    final db = await _dbHelper.database;
+    final time = timestamp ?? DateTime.now();
+    final values = <String, Object?>{
+      'last_confirmed_time': time.millisecondsSinceEpoch,
+      'status': 'active',
+    };
+    if (sourceMessage != null) values['source_message'] = sourceMessage;
+    await db.update(
+      'telecom_bundles',
+      values,
+      where: 'id = ?',
+      whereArgs: [bundleId],
+    );
   }
 
   Future<void> saveBundle(TelecomBundleModel bundle) async {
@@ -122,13 +188,18 @@ class BundleRepository {
 
     await db.insert('telecom_observations', obs.toMap());
 
-    // Update remaining allowance on parent bundle
+    // Update remaining allowance on parent bundle. Unlimited plans have no
+    // numeric allowance, so a zero value must not mark them exhausted.
+    final parent = await getBundleById(bundleId);
+    final isUnlimited = parent?.isUnlimited ?? false;
     await db.update(
       'telecom_bundles',
       {
         'remaining_allowance': remainingAllowance,
         'last_confirmed_time': time.millisecondsSinceEpoch,
-        'status': remainingAllowance <= 0.001 ? 'exhausted' : 'active',
+        'status': (!isUnlimited && remainingAllowance <= 0.001)
+            ? 'exhausted'
+            : 'active',
       },
       where: 'id = ?',
       whereArgs: [bundleId],
@@ -173,7 +244,7 @@ class BundleRepository {
           b.category == AppConstants.bundleCategoryNightData ||
           b.category == AppConstants.bundleCategorySocial;
 
-      if (isData) {
+      if (isData && !b.isUnlimited) {
         double inGb = b.unit == 'MB' ? (b.remainingAllowance / 1024.0) : b.remainingAllowance;
         if (isEthio) {
           ethioDataGb += inGb;
@@ -182,11 +253,13 @@ class BundleRepository {
         }
       }
 
-      if (b.category == AppConstants.bundleCategoryVoice || b.unit == 'minutes') {
+      if (!b.isUnlimited &&
+          (b.category == AppConstants.bundleCategoryVoice || b.unit == 'minutes')) {
         voiceMinutes += b.remainingAllowance.toInt();
       }
 
-      if (b.category == AppConstants.bundleCategorySms || b.unit == 'SMS') {
+      if (!b.isUnlimited &&
+          (b.category == AppConstants.bundleCategorySms || b.unit == 'SMS')) {
         smsTotal += b.remainingAllowance.toInt();
       }
     }

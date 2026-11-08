@@ -27,6 +27,23 @@ class MpesaParser extends BaseParser {
 
     final lower = message.toLowerCase();
 
+    // Airtime recharge receipts report the airtime balance, not the M-PESA
+    // wallet balance. They must never create an M-PESA transaction or reset the
+    // wallet to the airtime balance.
+    final isAirtimeRechargeReceipt =
+        lower.contains('recharge of') &&
+        lower.contains('balance:') &&
+        !lower.contains('m-pesa balance') &&
+        !lower.contains('new m-pesa');
+    if (isAirtimeRechargeReceipt) {
+      return ParseResult.failure(
+        institution: institutionName,
+        rawMessage: message,
+        reason: 'Airtime recharge receipt, not an M-PESA wallet movement',
+        status: ParseStatus.rejectedNonFinancial,
+      );
+    }
+
     // Check if it's purely a balance inquiry without transaction (should not create expense!)
     if (lower.contains('balance is') && !lower.contains('sent to') && !lower.contains('paid to') && !lower.contains('bought') && !lower.contains('received')) {
       final bal = extractBalance(message);
@@ -71,15 +88,19 @@ class MpesaParser extends BaseParser {
     }
 
     if (amountStr == null) {
-      return ParseResult.failure(
-        institution: institutionName,
-        rawMessage: message,
-        reason: 'Could not extract transaction amount from Safaricom M-PESA message',
-        status: ParseStatus.pendingReview,
+      return missingAmountResult(
+        message,
+        'Could not extract transaction amount from Safaricom M-PESA message',
       );
     }
 
     final amountSantims = parseAmountToSantims(amountStr);
+    if (amountSantims <= 0) {
+      return missingAmountResult(
+        message,
+        'Extracted zero or invalid amount from Safaricom M-PESA message',
+      );
+    }
 
     // Extract Merchant / Recipient
     String merchant = 'Safaricom M-PESA';

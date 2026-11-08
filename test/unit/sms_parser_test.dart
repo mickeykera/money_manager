@@ -284,4 +284,97 @@ void main() {
       expect(result.status, ParseStatus.rejectedNonFinancial);
     });
   });
+
+  group('Real-world message regressions', () {
+    final engine = ParserEngine();
+
+    // Real latest CBE debit alert (2026-05-09).
+    const cbeDebit =
+        'Dear Mr Michael your Account 1********1189 has been debited with '
+        'ETB 200.85 including Service charge ETB0.70ETB0.04 and VAT(15%) '
+        'ETB0.11. Your Current Balance is ETB 723.27.';
+
+    // Real latest Telebirr alert delivered from the shared sender 127.
+    const telebirrTransfer =
+        'You have transferred ETB 3,500.00 to Mr Yared on 09/05/2026 at '
+        '16:56:00. Transaction number is TB260509.1656.A12345. '
+        'Your current balance is ETB 2,087.47.';
+
+    // Real CBE transfer with the bank's "transfered" misspelling.
+    const cbeTransfer =
+        'Dear Michael, You have transfered ETB 57,000.00 to Mr Yared on '
+        '09/05/2026 at 17:31:09. Service charge ETB 5.00 and VAT ETB 1.00, '
+        'total of ETB 57006.00. Your Current Balance is ETB 924.12.';
+
+    // Real latest M-PESA alert (2026-01-10).
+    const mpesaAirtime =
+        'TD94RNM67E Confirmed. You have bought 20.00 Birr airtime on '
+        '10/01/2026 at 10:48 AM. Your new M-PESA balance is 0.00 Birr.';
+
+    test('sender 127: CBE account alerts are not parsed as Telebirr', () {
+      final result = engine.parse(cbeDebit, sender: '127');
+
+      expect(result.status, ParseStatus.success);
+      expect(result.institution, 'Commercial Bank of Ethiopia');
+      expect(result.amountSantims, 20085);
+      expect(result.balanceSantims, 72327);
+    });
+
+    test('sender 127: Telebirr alerts are not parsed as CBE', () {
+      final result = engine.parse(telebirrTransfer, sender: '127');
+
+      expect(result.status, ParseStatus.success);
+      expect(result.institution, 'Telebirr');
+      expect(result.amountSantims, 350000);
+      expect(result.balanceSantims, 208747);
+    });
+
+    test('parses CBE "transfered" misspelling and its current balance', () {
+      final result = engine.parse(cbeTransfer, sender: 'CBE');
+
+      expect(result.status, ParseStatus.success);
+      expect(result.amountSantims, 5700000);
+      expect(result.balanceSantims, 92412);
+      expect(result.transactionType, AppConstants.typeTransfer);
+    });
+
+    test('parses M-PESA airtime purchase and zero wallet balance', () {
+      final result = engine.parse(mpesaAirtime, sender: '700');
+
+      expect(result.status, ParseStatus.success);
+      expect(result.institution, 'Safaricom M-PESA');
+      expect(result.amountSantims, 2000);
+      expect(result.balanceSantims, 0);
+    });
+
+    test('pure M-PESA balance alert reconciles without a transaction', () {
+      const sms = 'Your new M-PESA balance is 0.00 Birr.';
+      final result = engine.parse(sms, sender: '700');
+
+      expect(result.status, ParseStatus.rejectedNonFinancial);
+      expect(result.amountSantims, 0);
+      expect(result.balanceSantims, 0);
+    });
+
+    test('Safaricom airtime recharge receipt is not an M-PESA movement', () {
+      const sms =
+          'Recharge of Br. 10.00 was successful. Balance: Br. 69.00. '
+          'To get 200GB and 500GB MEGA internet packages dial *704#.';
+      final result = engine.parse(sms, sender: '700');
+
+      expect(result.status, ParseStatus.rejectedNonFinancial);
+      expect(result.amountSantims, 0);
+    });
+
+    test('marketing SMS without an amount is rejected, not queued', () {
+      const sms =
+          'Dear customer, enjoy our new internet offers. Dial *804# to '
+          'subscribe and get more data.';
+      final result = engine.parse(sms, sender: '127');
+
+      expect(result.status, ParseStatus.rejectedNonFinancial);
+      expect(result.isPendingReview, isFalse);
+      expect(result.amountSantims, 0);
+    });
+  });
 }

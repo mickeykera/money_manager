@@ -1,3 +1,5 @@
+import '../../core/constants/app_constants.dart';
+
 /// Shared helpers for Ethio telecom and Safaricom bundle messages.
 ///
 /// Telecom SMS use many spellings for the same thing ("10GB", "10 GB",
@@ -35,11 +37,40 @@ class TelecomTextUtils {
     return value.toString();
   }
 
-  /// Parses `2026-11-24 18:30:00`, `24/11/2026`, `24-11-2026` and similar.
+  /// Parses `2026-11-24 18:30:00`, `24/11/2026`, `24-11-2026`,
+  /// `Nov 15, 2026 6:09:08 PM` and `2026-10-16 at 17:00:12`.
   static DateTime? parseDate(String raw) {
-    final cleaned = raw.trim();
+    var cleaned = raw.trim().replaceAll(RegExp(r'\s+'), ' ');
+    cleaned = cleaned.replaceAll(RegExp(r'\s+at\s+', caseSensitive: false), ' ');
+
     final iso = DateTime.tryParse(cleaned);
     if (iso != null) return iso;
+
+    // Month-name dates: "Nov 15, 2026 6:09:08 PM".
+    final monthName = RegExp(
+      r'^([A-Za-z]{3,9})\s+([0-9]{1,2}),?\s+([0-9]{4})'
+      r'(?:\s+([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}))?\s*(AM|PM)?)?$',
+      caseSensitive: false,
+    ).firstMatch(cleaned);
+    if (monthName != null) {
+      final month = _monthNumber(monthName.group(1)!);
+      if (month != null) {
+        var hour = int.tryParse(monthName.group(4) ?? '0') ?? 0;
+        final minute = int.tryParse(monthName.group(5) ?? '0') ?? 0;
+        final second = int.tryParse(monthName.group(6) ?? '0') ?? 0;
+        final suffix = monthName.group(7)?.toUpperCase();
+        if (suffix == 'PM' && hour < 12) hour += 12;
+        if (suffix == 'AM' && hour == 12) hour = 0;
+        return DateTime(
+          int.parse(monthName.group(3)!),
+          month,
+          int.parse(monthName.group(2)!),
+          hour,
+          minute,
+          second,
+        );
+      }
+    }
 
     final datePart = cleaned.split(RegExp(r'[ T]')).first;
     final parts = datePart.split(RegExp(r'[-/]'));
@@ -55,9 +86,29 @@ class TelecomTextUtils {
     return DateTime(third, second, first);
   }
 
+  static int? _monthNumber(String raw) {
+    const months = {
+      'jan': 1,
+      'feb': 2,
+      'mar': 3,
+      'apr': 4,
+      'may': 5,
+      'jun': 6,
+      'jul': 7,
+      'aug': 8,
+      'sep': 9,
+      'oct': 10,
+      'nov': 11,
+      'dec': 12,
+    };
+    final key = raw.toLowerCase();
+    if (key.length < 3) return null;
+    return months[key.substring(0, 3)];
+  }
+
   static final RegExp dataPattern = RegExp(
     r'([0-9][0-9,]*(?:\.[0-9]+)?)\s*'
-    r'(GB|MB|G|M|GIGA(?:BYTES?)?|MEGA(?:BYTES?)?)\b',
+    r'(GB|MB|G|M|GIGA(?:BYTES?)?|MEGA(?:BYTES?)?|ጊ\.ባ|ሜ\.ባ)\b',
     caseSensitive: false,
   );
 
@@ -146,6 +197,9 @@ class TelecomTextUtils {
   static bool isPurchase(String message) {
     final lower = message.toLowerCase();
     return purchasePattern.hasMatch(lower) ||
+        lower.contains('new service offer') ||
+        lower.contains('is added to your service') ||
+        lower.contains('has been added') ||
         message.contains('ገዝተዋል') ||
         message.contains('ተሞልቷል') ||
         message.contains('አስገብተዋል') ||
@@ -202,18 +256,19 @@ class TelecomTextUtils {
   }
 
   /// Extracts the purchase price from phrases such as "for ETB 300.00",
-  /// "በብር 35.00", "ETB 100" or "100 Birr".
+  /// "በብር 35.00", "ETB 100", "100 Birr" or "for Br.60".
   static int? purchasePriceSantims(String message) {
+    const currency = r'(?:ETB|Birr|Br\.?|ብር)';
     final explicit = RegExp(
-      r'(?:for|at|with)\s+(?:ETB|Birr|ብር)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)',
+      r'(?:for|at|with)\s+' + currency + r'\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)',
       caseSensitive: false,
     ).firstMatch(message);
     final leading = RegExp(
-      r'(?:ETB|Birr|ብር)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)',
+      currency + r'\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)',
       caseSensitive: false,
     ).firstMatch(message);
     final trailing = RegExp(
-      r'([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(?:ETB|Birr|ብር)',
+      r'([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*' + currency,
       caseSensitive: false,
     ).firstMatch(message);
 
@@ -224,15 +279,22 @@ class TelecomTextUtils {
     return (amount * 100).round();
   }
 
+  /// A single date token used by the expiry/activation patterns. Supports
+  /// `2026-11-24`, `24/11/2026`, `Nov 15, 2026` and an optional time suffix
+  /// (`18:30:00`, `6:09:08 PM`, `at 17:00:12`).
+  static const String _dateToken =
+      r'(?:'
+      r'[0-9]{4}[-/][0-9]{1,2}[-/][0-9]{1,2}'
+      r'|[0-9]{1,2}[-/][0-9]{1,2}[-/][0-9]{4}'
+      r'|[A-Za-z]{3,9}\s+[0-9]{1,2},?\s+[0-9]{4}'
+      r')'
+      r'(?:\s+(?:at\s+)?[0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?\s*(?:AM|PM)?)?';
+
   static final RegExp expiryPattern = RegExp(
-    r'(?:valid\s*(?:until|till|up\s*to|for)|expires?\s*(?:on|at)?|እስከ|ድረስ)\s*'
-    r'('
-    r'[0-9]{4}[-/][0-9]{1,2}[-/][0-9]{1,2}'
-    r'(?:[ T][0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?)?'
-    r'|'
-    r'[0-9]{1,2}[-/][0-9]{1,2}[-/][0-9]{4}'
-    r'(?:[ T][0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?)?'
-    r')',
+    r'(?:valid\s*(?:until|till|up\s*to)|expir(?:es|e|ed|y(?:\s*date)?)|'
+    r'እስከ|ድረስ)'
+    r'.{0,80}?'
+    '($_dateToken)',
     caseSensitive: false,
   );
 
@@ -240,5 +302,84 @@ class TelecomTextUtils {
     final match = expiryPattern.firstMatch(message);
     if (match == null) return null;
     return parseDate(match.group(1)!);
+  }
+
+  static final RegExp activationPattern = RegExp(
+    r'(?:effective\s+as\s+of|activated\s+(?:on|at)|activation\s*(?:date|time)?\s*:?|'
+    r'valid\s+from)\s*'
+    '($_dateToken)',
+    caseSensitive: false,
+  );
+
+  static DateTime? activationTime(String message) {
+    final match = activationPattern.firstMatch(message);
+    if (match == null) return null;
+    return parseDate(match.group(1)!);
+  }
+
+  /// Unlimited packages have no numeric allowance; they are valid until the
+  /// expiry date instead.
+  static bool isUnlimited(String message) {
+    final lower = message.toLowerCase();
+    return RegExp(r'\bunlimited\b|\binfinity\b', caseSensitive: false)
+            .hasMatch(lower) ||
+        message.contains('ያልተገደበ') ||
+        message.contains('ያልተገደበው');
+  }
+
+  /// Category for an unlimited plan: SMS, voice, or general internet/data.
+  static String unlimitedCategory(String message) {
+    final lower = message.toLowerCase();
+    final mentionsSms = RegExp(r'\bsms\b|texts?\b', caseSensitive: false)
+            .hasMatch(lower) ||
+        message.contains('ኤስኤምኤስ') ||
+        message.contains('ጽሑፍ');
+    if (mentionsSms) return AppConstants.bundleCategorySms;
+
+    final mentionsVoice = RegExp(
+      r'\b(voice|minutes?|mins?|calls?)\b',
+      caseSensitive: false,
+    ).hasMatch(lower) ||
+        message.contains('ደቂቃ') ||
+        message.contains('ጥሪ');
+    if (mentionsVoice) return AppConstants.bundleCategoryVoice;
+
+    return AppConstants.bundleCategoryUnlimited;
+  }
+
+  /// Pulls a readable plan name out of activation/reminder messages such as
+  /// "the new service offer Monthly Unlimited Premium Internet plan" or
+  /// "successfully purchased Wullo Unlimited Internet for Br.60".
+  static String? unlimitedPlanName(String message) {
+    final patterns = <RegExp>[
+      RegExp(
+        r'(?:offer|plan)\s+([A-Za-z][A-Za-z0-9 ]*?Unlimited[A-Za-z0-9 ]*?)\s+plan\b',
+        caseSensitive: false,
+      ),
+      RegExp(
+        r'(?:your\s+)?([A-Za-z][A-Za-z0-9 ]*?Unlimited[A-Za-z0-9 ]*?)\s+plan\b',
+        caseSensitive: false,
+      ),
+      RegExp(
+        r'purchased\s+([A-Za-z][A-Za-z0-9 ]*?Unlimited[A-Za-z0-9 ]*?)\s+for\b',
+        caseSensitive: false,
+      ),
+    ];
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(message);
+      final name = match?.group(1)?.trim();
+      if (name != null && name.isNotEmpty) return name;
+    }
+    return null;
+  }
+
+  /// Messages such as "Your Wullo Unlimited Internet has expired" are
+  /// notifications, not new package activations.
+  static bool isExpiryNotice(String message) {
+    final lower = message.toLowerCase();
+    return RegExp(
+      r'\b(?:has|have|is|was)\s+(?:now\s+)?expired\b',
+      caseSensitive: false,
+    ).hasMatch(lower);
   }
 }

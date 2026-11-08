@@ -56,6 +56,18 @@ class TransactionRepository {
     });
   }
 
+  /// Removes SMS-derived transactions with no monetary amount. These come from
+  /// marketing/promotional messages that older parser versions queued as
+  /// pending review and must not appear in the ledger or review queue.
+  Future<int> deleteZeroAmountSmsTransactions() async {
+    final db = await _dbHelper.database;
+    return db.delete(
+      'transactions',
+      where: 'source = ? AND amount_santims <= ?',
+      whereArgs: [AppConstants.sourceSms, 0],
+    );
+  }
+
   Future<void> _applyBalanceChange(
     DatabaseExecutor txn,
     String accountId,

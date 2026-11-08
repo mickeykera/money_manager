@@ -11,11 +11,27 @@ class TelebirrParser extends BaseParser {
 
   @override
   bool canParse(String message, String? sender) {
+    final lower = message.toLowerCase();
     if (sender != null) {
       final s = sender.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
-      if (s == 'telebirr' || s == '127' || s == 'ethiotel' || s == 'ethiotelecom') return true;
+      if (s == '127') {
+        // 127 is shared by CBE and Telebirr. Only claim messages that look
+        // like Telebirr; explicit CBE account alerts belong to CbeParser.
+        final looksCbe = (lower.contains('cbe') ||
+                lower.contains('commercial bank of ethiopia') ||
+                message.contains('ንግድ ባንክ')) &&
+            !lower.contains('telebirr') &&
+            !message.contains('ቴሌብር');
+        if (looksCbe) return false;
+        return true;
+      }
+      if (s == 'telebirr' ||
+          s == 'ethiotel' ||
+          s == 'ethiotelecom' ||
+          s == 'ethiotelecomet') {
+        return true;
+      }
     }
-    final lower = message.toLowerCase();
     return lower.contains('telebirr') ||
         lower.contains('ቴሌብር') ||
         message.contains('TB2') ||
@@ -56,15 +72,19 @@ class TelebirrParser extends BaseParser {
     }
 
     if (amountStr == null) {
-      return ParseResult.failure(
-        institution: institutionName,
-        rawMessage: message,
-        reason: 'Could not extract transaction amount from Telebirr message',
-        status: ParseStatus.pendingReview,
+      return missingAmountResult(
+        message,
+        'Could not extract transaction amount from Telebirr message',
       );
     }
 
     final amountSantims = parseAmountToSantims(amountStr);
+    if (amountSantims <= 0) {
+      return missingAmountResult(
+        message,
+        'Extracted zero or invalid amount from Telebirr message',
+      );
+    }
 
     // Merchant / Beneficiary extraction
     String merchant = 'Telebirr';
