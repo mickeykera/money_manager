@@ -222,6 +222,7 @@ class AppState extends ChangeNotifier {
   /// window so stale restored bundles cannot linger.
   Future<void> prepareForFullSmsRescan() async {
     await _transactionRepo.deleteZeroAmountSmsTransactions();
+    await _transactionRepo.deletePrepaidAirtimeSmsTransactions();
     await _bundleRepo.clearAllBundles();
   }
 

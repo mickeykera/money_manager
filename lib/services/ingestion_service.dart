@@ -16,6 +16,7 @@ import '../parser/models/parse_result.dart';
 import '../parser/parser_engine.dart';
 import '../parser/telecom/telecom_parse_result.dart';
 import '../parser/telecom/telecom_parser_engine.dart';
+import '../parser/telecom/telecom_text_utils.dart';
 
 class IngestionResponse {
   final bool success;
@@ -81,6 +82,24 @@ class IngestionService {
     final timestamp = messageTime ?? DateTime.now();
     final cleanMessage = rawMessage.trim();
     final sanitizedSnippet = _createSanitizedSnippet(cleanMessage);
+
+    // 0. Ethio telecom prepaid SIM notices (airtime, bonus funds, subscriber
+    // airtime transfers) report the prepaid airtime balance, not the Telebirr
+    // wallet. Ignoring them here keeps them from being recorded as bank/wallet
+    // transactions and from overwriting the wallet balance.
+    if (TelecomTextUtils.isPrepaidAirtimeNotice(cleanMessage, sender)) {
+      await _logIngestion(
+        sender: sender,
+        snippet: sanitizedSnippet,
+        status: 'rejected_non_financial',
+        confidence: 0.0,
+        error: 'Ethio telecom prepaid airtime notice, not a wallet movement',
+      );
+      return const IngestionResponse(
+        success: false,
+        message: 'Ethio telecom prepaid airtime notice ignored.',
+      );
+    }
 
     // 1. Telecom Bundle Branch (Ethio telecom & Safaricom Ethiopia)
     if (_telecomEngine.canParse(cleanMessage, sender)) {

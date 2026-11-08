@@ -461,5 +461,125 @@ void main() {
       expect((await accountRepo.getAccountById('acc_telebirr'))?.balanceSantims, 0);
       expect((await accountRepo.getAccountById('acc_cash'))?.balanceSantims, 10000);
     });
+
+    test('Ethio telecom airtime transfer does not overwrite the Telebirr wallet', () async {
+      const telebirr =
+          'You have transferred ETB 3,500.00 to Mr Yared on 09/05/2026 at '
+          '16:56:00. Transaction number is TB260509.1656.A12345. '
+          'Your current balance is ETB 2,087.47.';
+      await ingestionService.processIncomingSms(
+        rawMessage: telebirr,
+        sender: '127',
+        messageTime: DateTime(2026, 5, 9, 16, 56),
+      );
+      expect(
+        (await accountRepo.getAccountById('acc_telebirr'))?.balanceSantims,
+        208747,
+      );
+
+      const airtime =
+          'Dear customer,0936650202 subscriber transferred 240.00 Birr for '
+          'you.Your balance is 1590.00 Birr now.ethio telecom';
+      final res = await ingestionService.processIncomingSms(
+        rawMessage: airtime,
+        sender: '251994',
+        messageTime: DateTime(2026, 8, 17, 8, 25),
+      );
+
+      expect(res.success, isFalse);
+      expect(res.transaction, isNull);
+      expect(res.reconciledAccountId, isNull);
+      expect(
+        (await accountRepo.getAccountById('acc_telebirr'))?.balanceSantims,
+        208747,
+      );
+    });
+
+    test('Ethio telecom prepaid recharge and bonus notices create no ledger entries', () async {
+      final before = await txRepo.getTransactions(const FilterCriteria());
+
+      const messages = <String>[
+        'Dear Customer, \n Your prepaid account has been recharged '
+            'successfully. Your Recharged balance is 50.00 Birr. Your balance '
+            'is 1746.57 Birr. Download and use telebirr SuperApp from '
+            'https://onelink.to/uecbbr and get bonus during airtime & package '
+            'purchase. \n Ethio telecom',
+        'Dear Customer,     your remaining amount from Bonus Fund is 262.50 '
+            'Birr and validity until 01/01/2037, From Win-back and Tele-birr. '
+            '   Thank you Ethio telecom.',
+        'Dear Customer, \n You have been awarded an ETB 87.50 bonus for '
+            'recharging your prepaid account using telebirr SuperApp Day Deal '
+            'airtime recharge. \n Thank you!\n Ethio telecom',
+        'Dear Customer; \n You have successfully redeemed Airtime via service '
+            'number 0986402248. \nThank you \nEthio telecom',
+      ];
+
+      for (final msg in messages) {
+        final res = await ingestionService.processIncomingSms(
+          rawMessage: msg,
+          sender: '251994',
+        );
+        expect(res.success, isFalse);
+        expect(res.transaction, isNull);
+      }
+
+      final after = await txRepo.getTransactions(const FilterCriteria());
+      expect(after.length, before.length);
+      expect(
+        (await accountRepo.getAccountById('acc_telebirr'))?.balanceSantims,
+        200000,
+      );
+    });
+
+    test('deletePrepaidAirtimeSmsTransactions removes only airtime notice rows', () async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      Future<void> insert(String id, String original, int amount) async {
+        await db.insert('transactions', {
+          'id': id,
+          'amount_santims': amount,
+          'currency': 'ETB',
+          'type': 'expense',
+          'merchant': 'Test',
+          'timestamp': now,
+          'timezone_offset_minutes': 180,
+          'category_id': 'cat_other',
+          'account_id': 'acc_telebirr',
+          'source': AppConstants.sourceSms,
+          'import_status': AppConstants.statusPosted,
+          'original_message': original,
+          'is_reviewed': 1,
+          'created_at': now,
+          'updated_at': now,
+        });
+      }
+
+      await insert(
+        'tx_airtime_transfer',
+        'Dear customer,0936650202 subscriber transferred 240.00 Birr for '
+            'you.Your balance is 1590.00 Birr now.ethio telecom',
+        24000,
+      );
+      await insert(
+        'tx_bonus',
+        'You have been awarded an ETB 87.50 bonus for recharging your prepaid '
+            'account using telebirr SuperApp Day Deal airtime recharge.',
+        8750,
+      );
+      // A genuine Telebirr wallet airtime purchase must survive.
+      await insert(
+        'tx_real_airtime',
+        'You have recharged ETB 100.00 airtime for 986402248 on 18/04/2026 '
+            '22:28:24. Your current balance is ETB 0.00. Thank you for using '
+            'telebirr.',
+        10000,
+      );
+
+      final removed = await txRepo.deletePrepaidAirtimeSmsTransactions();
+      expect(removed, equals(2));
+
+      final remaining = await txRepo.getTransactions(const FilterCriteria());
+      expect(remaining.length, equals(1));
+      expect(remaining.single.id, equals('tx_real_airtime'));
+    });
   });
 }

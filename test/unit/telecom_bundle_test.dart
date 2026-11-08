@@ -9,6 +9,7 @@ import 'package:ledgerleaf/domain/models/bundle_model.dart';
 import 'package:ledgerleaf/domain/models/filter_criteria.dart';
 import 'package:ledgerleaf/parser/telecom/ethio_telecom_parser.dart';
 import 'package:ledgerleaf/parser/telecom/safaricom_telecom_parser.dart';
+import 'package:ledgerleaf/parser/telecom/telecom_text_utils.dart';
 import 'package:ledgerleaf/services/ingestion_service.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -25,6 +26,52 @@ void main() {
 
     setUp(() {
       parser = EthioTelecomParser();
+    });
+
+    test('flags prepaid airtime notices so they never hit the wallet', () {
+      const subscriberTransfer =
+          'Dear customer,0936650202 subscriber transferred 240.00 Birr for '
+          'you.Your balance is 1590.00 Birr now.ethio telecom';
+      const prepaidRecharge =
+          'Dear Customer, Your prepaid account has been recharged '
+          'successfully. Your Recharged balance is 50.00 Birr. Your balance '
+          'is 1746.57 Birr. Ethio telecom';
+      const bonusFund =
+          'Dear Customer, your remaining amount from Bonus Fund is 262.50 '
+          'Birr and validity until 01/01/2037, From Win-back and Tele-birr.';
+
+      expect(
+        TelecomTextUtils.isPrepaidAirtimeNotice(subscriberTransfer, '251994'),
+        isTrue,
+      );
+      expect(
+        TelecomTextUtils.isPrepaidAirtimeNotice(prepaidRecharge, '994'),
+        isTrue,
+      );
+      expect(
+        TelecomTextUtils.isPrepaidAirtimeNotice(bonusFund, '251994'),
+        isTrue,
+      );
+
+      // Genuine Telebirr wallet movement from the shared 127 sender.
+      expect(
+        TelecomTextUtils.isPrepaidAirtimeNotice(
+          'You have transferred ETB 3,500.00. Your current balance is '
+          'ETB 2,087.47.',
+          '127',
+        ),
+        isFalse,
+      );
+
+      // Genuine Telebirr airtime purchase paid from the wallet.
+      expect(
+        TelecomTextUtils.isPrepaidAirtimeNotice(
+          'You have recharged ETB 100.00 airtime for 986402248. Your current '
+          'balance is ETB 0.00. Thank you for using telebirr.',
+          '127',
+        ),
+        isFalse,
+      );
     });
 
     test('canParse recognizes Ethio telecom senders and text', () {

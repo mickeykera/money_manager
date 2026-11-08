@@ -382,4 +382,41 @@ class TelecomTextUtils {
       caseSensitive: false,
     ).hasMatch(lower);
   }
+
+  /// Ethio telecom's service short code (994) also sends prepaid SIM notices:
+  /// airtime recharges, bonus funds, free-airtime redemptions and subscriber
+  /// airtime transfers. Their "balance" is the prepaid airtime balance, not the
+  /// Telebirr wallet, so they must never create ledger entries or reconcile the
+  /// mobile-money account.
+  static const Set<String> ethioServiceSenderIds = {
+    '994',
+    '0994',
+    '251994',
+    '00251994',
+  };
+
+  static bool isPrepaidAirtimeNotice(String message, String? sender) {
+    if (sender == null) return false;
+    final normalized = normalizeSender(sender);
+    if (!ethioServiceSenderIds.contains(normalized)) return false;
+
+    final lower = message.toLowerCase();
+
+    // A genuine Telebirr wallet movement is still financial even when it is
+    // delivered from the service short code.
+    final looksLikeTelebirrWallet =
+        lower.contains('telebirr account') ||
+        lower.contains('from your telebirr') ||
+        lower.contains('your telebirr transaction') ||
+        (lower.contains('transaction number') && lower.contains('telebirr'));
+    if (looksLikeTelebirrWallet) return false;
+
+    return lower.contains('prepaid') ||
+        lower.contains('airtime') ||
+        lower.contains('bonus fund') ||
+        lower.contains('subscriber transferred') ||
+        lower.contains('day deal') ||
+        lower.contains('recharged balance') ||
+        lower.contains('remaining amount from bonus');
+  }
 }

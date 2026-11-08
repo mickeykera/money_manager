@@ -68,6 +68,29 @@ class TransactionRepository {
     );
   }
 
+  /// Removes SMS transactions that older builds created from Ethio telecom
+  /// prepaid airtime/bonus notices. Those messages describe the prepaid SIM
+  /// balance, not a Telebirr wallet movement, so any ledger row they produced is
+  /// bogus. Patterns are deliberately specific so genuine Telebirr airtime
+  /// purchases are left untouched.
+  Future<int> deletePrepaidAirtimeSmsTransactions() async {
+    final db = await _dbHelper.database;
+    const patterns = <String>[
+      '%subscriber transferred%',
+      '%prepaid account has been recharged%',
+      '%Recharged balance is%',
+      '%remaining amount from Bonus Fund%',
+      '%Day Deal airtime recharge%',
+      '%successfully redeemed Airtime%',
+    ];
+    final clauses = List.filled(patterns.length, 'original_message LIKE ?');
+    return db.delete(
+      'transactions',
+      where: 'source = ? AND (${clauses.join(' OR ')})',
+      whereArgs: [AppConstants.sourceSms, ...patterns],
+    );
+  }
+
   Future<void> _applyBalanceChange(
     DatabaseExecutor txn,
     String accountId,
