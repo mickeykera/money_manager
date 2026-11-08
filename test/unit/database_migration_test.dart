@@ -257,4 +257,159 @@ void main() {
       await upgradedDb.close();
     });
   });
+
+  group('Database schema repair', () {
+    test('repairs a partial v2 schema without losing data', () async {
+      final db = await databaseFactoryFfi.openDatabase(
+        inMemoryDatabasePath,
+        options: OpenDatabaseOptions(
+          version: 2,
+          onCreate: (database, version) async {
+            // Simulate a database whose version was already bumped but whose
+            // migration was interrupted: v1 accounts table, no telecom tables.
+            await database.execute('''
+              CREATE TABLE accounts (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                type TEXT NOT NULL,
+                balance_santims INTEGER NOT NULL DEFAULT 0,
+                currency TEXT NOT NULL DEFAULT 'ETB',
+                account_number_masked TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+              );
+            ''');
+            final now = DateTime.now().millisecondsSinceEpoch;
+            await database.insert('accounts', {
+              'id': 'acc_cbe',
+              'name': 'CBE',
+              'type': 'bank',
+              'balance_santims': 72327,
+              'currency': 'ETB',
+              'created_at': now,
+              'updated_at': now,
+            });
+          },
+        ),
+      );
+
+      await DatabaseHelper().repairSchema(db);
+
+      final accountColumns = await db.rawQuery('PRAGMA table_info(accounts);');
+      final names = accountColumns
+          .map((row) => row['name']?.toString())
+          .toList();
+      expect(names, contains('is_sms_linked'));
+      expect(names, contains('balance_source'));
+
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type = 'table';",
+      );
+      final tableNames =
+          tables.map((row) => row['name']?.toString()).toSet();
+      expect(
+        tableNames,
+        containsAll([
+          'categories',
+          'transactions',
+          'ingestion_logs',
+          'settings',
+          'telecom_bundles',
+          'telecom_observations',
+        ]),
+      );
+
+      // Existing balance is preserved and missing defaults are seeded.
+      final cbe = (await db.query(
+        'accounts',
+        where: 'id = ?',
+        whereArgs: ['acc_cbe'],
+      ))
+          .single;
+      expect(cbe['balance_santims'], 72327);
+      expect(cbe['is_sms_linked'], 1);
+      expect(await db.query('categories'), isNotEmpty);
+      expect(await db.query('settings'), isNotEmpty);
+
+      await db.close();
+    });
+
+    test('does not resurrect user-deleted accounts or categories', () async {
+      final db = await databaseFactoryFfi.openDatabase(
+        inMemoryDatabasePath,
+        options: OpenDatabaseOptions(
+          version: 2,
+          onCreate: (database, version) async {
+            final now = DateTime.now().millisecondsSinceEpoch;
+            await database.execute('''
+              CREATE TABLE accounts (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                type TEXT NOT NULL,
+                balance_santims INTEGER NOT NULL DEFAULT 0,
+                currency TEXT NOT NULL DEFAULT 'ETB',
+                account_number_masked TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+              );
+            ''');
+            await database.execute('''
+              CREATE TABLE categories (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                icon_code_point INTEGER NOT NULL,
+                color_value INTEGER NOT NULL,
+                monthly_budget_santims INTEGER NOT NULL DEFAULT 0,
+                is_income INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL
+              );
+            ''');
+            await database.execute('''
+              CREATE TABLE settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+              );
+            ''');
+            await database.insert('accounts', {
+              'id': 'acc_cbe',
+              'name': 'CBE',
+              'type': 'bank',
+              'balance_santims': 5000,
+              'currency': 'ETB',
+              'created_at': now,
+              'updated_at': now,
+            });
+            await database.insert('categories', {
+              'id': 'cat_other',
+              'name': 'Other',
+              'icon_code_point': 1,
+              'color_value': 0xFF8D99AE,
+              'monthly_budget_santims': 0,
+              'is_income': 0,
+              'created_at': now,
+            });
+            await database.insert('settings', {
+              'key': 'currency',
+              'value': 'ETB',
+            });
+          },
+        ),
+      );
+
+      await DatabaseHelper().repairSchema(db);
+
+      final accounts = await db.query('accounts');
+      expect(accounts.length, 1);
+      expect(accounts.single['id'], 'acc_cbe');
+
+      final categories = await db.query('categories');
+      expect(categories.length, 1);
+      expect(categories.single['id'], 'cat_other');
+
+      final settings = await db.query('settings');
+      expect(settings.length, 1);
+
+      await db.close();
+    });
+  });
 }

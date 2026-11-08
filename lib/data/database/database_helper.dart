@@ -44,7 +44,48 @@ class DatabaseHelper {
       await dbDir.create(recursive: true);
     }
 
-    final db = await openDatabase(
+    return _openDatabaseWithRecovery(dbPath);
+  }
+
+  /// Opens the local vault and recovers from the failures that can otherwise
+  /// leave the app stuck on the startup error screen.
+  ///
+  /// Recovery order:
+  /// 1. Normal open (runs schema creation/migrations).
+  /// 2. One short retry for a transient lock.
+  /// 3. In-place repair of a partially migrated or inconsistent schema.
+  /// 4. Quarantine the unusable file (keeping a copy) and create a fresh vault.
+  Future<Database> _openDatabaseWithRecovery(String dbPath) async {
+    try {
+      return await _openDatabaseAt(dbPath);
+    } catch (error, stackTrace) {
+      debugPrint(
+        'LedgerLeaf database open failed: $error\n$stackTrace',
+      );
+
+      if (_isLockError(error)) {
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        try {
+          return await _openDatabaseAt(dbPath);
+        } catch (retryError) {
+          debugPrint('LedgerLeaf database retry failed: $retryError');
+          rethrow;
+        }
+      }
+
+      final repaired = await _tryRepairInPlace(dbPath);
+      if (repaired != null) return repaired;
+
+      // The file cannot be opened or repaired. Preserve it for manual recovery
+      // and start with a fresh schema so the user can keep using the app.
+      debugPrint('LedgerLeaf database is unusable; quarantining $dbPath');
+      await _quarantineDatabase(dbPath);
+      return _openDatabaseAt(dbPath);
+    }
+  }
+
+  Future<Database> _openDatabaseAt(String dbPath) {
+    return openDatabase(
       dbPath,
       version: AppConstants.databaseVersion,
       onConfigure: (db) async {
@@ -86,9 +127,145 @@ class DatabaseHelper {
           );
         }
       },
+      onOpen: (db) async {
+        // Repairs databases whose user_version already matches but whose
+        // schema is incomplete (for example after an interrupted migration).
+        await repairSchema(db);
+      },
     );
+  }
 
-    return db;
+  /// Opens the raw file without version checks, verifies integrity, repairs the
+  /// schema in place, then reopens normally. Returns null when the file cannot
+  /// be repaired.
+  Future<Database?> _tryRepairInPlace(String dbPath) async {
+    Database? raw;
+    try {
+      raw = await openDatabase(dbPath);
+      final integrity = await raw.rawQuery('PRAGMA integrity_check;');
+      final integrityResult = integrity.isEmpty
+          ? null
+          : integrity.first.values.first?.toString().toLowerCase();
+      if (integrityResult != 'ok') {
+        debugPrint(
+          'LedgerLeaf database integrity check failed: $integrityResult',
+        );
+        await raw.close();
+        return null;
+      }
+
+      await repairSchema(raw);
+      await raw.close();
+      return await _openDatabaseAt(dbPath);
+    } catch (error, stackTrace) {
+      debugPrint(
+        'LedgerLeaf database repair failed: $error\n$stackTrace',
+      );
+      try {
+        await raw?.close();
+      } catch (_) {}
+      return null;
+    }
+  }
+
+  /// Makes the schema idempotent so an older or partially migrated database can
+  /// be opened without losing its transactions.
+  Future<void> repairSchema(DatabaseExecutor db) async {
+    // Add v2 account columns before creating/altering anything else. If the
+    // accounts table does not exist yet, _createTables below creates it with
+    // the full schema.
+    final accountColumns = await _columnNames(db, 'accounts');
+    if (accountColumns.isNotEmpty) {
+      if (!accountColumns.contains('is_sms_linked')) {
+        await db.execute(
+          'ALTER TABLE accounts ADD COLUMN is_sms_linked INTEGER NOT NULL DEFAULT 1;',
+        );
+      }
+      if (!accountColumns.contains('balance_source')) {
+        await db.execute(
+          "ALTER TABLE accounts ADD COLUMN balance_source TEXT NOT NULL DEFAULT 'Latest imported SMS';",
+        );
+      }
+    }
+
+    await _createTables(db);
+
+    // Seed defaults only when a core table is empty (fresh or heavily damaged
+    // database). Each table is handled independently so user deletions in other
+    // tables are preserved.
+    final hasAccounts = await _tableHasRows(db, 'accounts');
+    final hasCategories = await _tableHasRows(db, 'categories');
+    final hasSettings = await _tableHasRows(db, 'settings');
+    if (!hasAccounts) {
+      await _seedDefaultData(
+        db,
+        includeSample: false,
+        seedCategories: false,
+        seedSettings: false,
+      );
+    }
+    if (!hasCategories) {
+      await _seedDefaultData(
+        db,
+        includeSample: false,
+        seedAccounts: false,
+        seedSettings: false,
+      );
+    }
+    if (!hasSettings) {
+      await _seedDefaultData(
+        db,
+        includeSample: false,
+        seedAccounts: false,
+        seedCategories: false,
+      );
+    }
+  }
+
+  Future<bool> _tableHasRows(DatabaseExecutor db, String table) async {
+    try {
+      final rows = await db.rawQuery('SELECT 1 FROM $table LIMIT 1;');
+      return rows.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<Set<String>> _columnNames(
+    DatabaseExecutor db,
+    String table,
+  ) async {
+    try {
+      final rows = await db.rawQuery('PRAGMA table_info($table);');
+      return rows
+          .map((row) => row['name']?.toString() ?? '')
+          .where((name) => name.isNotEmpty)
+          .toSet();
+    } catch (_) {
+      return <String>{};
+    }
+  }
+
+  bool _isLockError(Object error) {
+    final message = error.toString().toLowerCase();
+    return message.contains('locked') || message.contains('busy');
+  }
+
+  /// Keeps the original file (with a `.corrupt-<timestamp>` suffix) for manual
+  /// recovery, then removes the SQLite sidecar files so a fresh database can be
+  /// created at the same path.
+  Future<void> _quarantineDatabase(String dbPath) async {
+    final stamp = DateTime.now().millisecondsSinceEpoch;
+    for (final suffix in const ['', '-wal', '-shm']) {
+      final file = File('$dbPath$suffix');
+      if (!await file.exists()) continue;
+      try {
+        await file.rename('$dbPath.corrupt-$stamp$suffix');
+      } catch (_) {
+        // If the file cannot be renamed, deleting is the only way to recover.
+        await file.delete();
+      }
+    }
   }
 
   Future<String> _getDatabasePath() async {
@@ -98,7 +275,7 @@ class DatabaseHelper {
 
   Future<void> _createTables(DatabaseExecutor db) async {
     await db.execute('''
-      CREATE TABLE accounts (
+      CREATE TABLE IF NOT EXISTS accounts (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         type TEXT NOT NULL,
@@ -113,7 +290,7 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
-      CREATE TABLE categories (
+      CREATE TABLE IF NOT EXISTS categories (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         icon_code_point INTEGER NOT NULL,
@@ -125,7 +302,7 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
-      CREATE TABLE transactions (
+      CREATE TABLE IF NOT EXISTS transactions (
         id TEXT PRIMARY KEY,
         amount_santims INTEGER NOT NULL,
         currency TEXT NOT NULL DEFAULT 'ETB',
@@ -151,23 +328,23 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
-      CREATE INDEX idx_transactions_timestamp ON transactions (timestamp DESC);
+      CREATE INDEX IF NOT EXISTS idx_transactions_timestamp ON transactions (timestamp DESC);
     ''');
     await db.execute('''
-      CREATE INDEX idx_transactions_category ON transactions (category_id);
+      CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions (category_id);
     ''');
     await db.execute('''
-      CREATE INDEX idx_transactions_account ON transactions (account_id);
+      CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions (account_id);
     ''');
     await db.execute('''
-      CREATE INDEX idx_transactions_type ON transactions (type);
+      CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions (type);
     ''');
     await db.execute('''
-      CREATE INDEX idx_transactions_fingerprint ON transactions (source_fingerprint);
+      CREATE INDEX IF NOT EXISTS idx_transactions_fingerprint ON transactions (source_fingerprint);
     ''');
 
     await db.execute('''
-      CREATE TABLE ingestion_logs (
+      CREATE TABLE IF NOT EXISTS ingestion_logs (
         id TEXT PRIMARY KEY,
         timestamp INTEGER NOT NULL,
         sender TEXT,
@@ -180,7 +357,7 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
-      CREATE TABLE settings (
+      CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
       );
@@ -232,7 +409,13 @@ class DatabaseHelper {
     ''');
   }
 
-  Future<void> _seedDefaultData(DatabaseExecutor db) async {
+  Future<void> _seedDefaultData(
+    DatabaseExecutor db, {
+    bool includeSample = true,
+    bool seedAccounts = true,
+    bool seedCategories = true,
+    bool seedSettings = true,
+  }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
 
     // Default Ethiopian Accounts
@@ -298,8 +481,14 @@ class DatabaseHelper {
       ),
     ];
 
-    for (final acc in accounts) {
-      await db.insert('accounts', acc.toMap());
+    if (seedAccounts) {
+      for (final acc in accounts) {
+        await db.insert(
+          'accounts',
+          acc.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+      }
     }
 
     // Default Categories with appropriate icons & colors
@@ -423,8 +612,14 @@ class DatabaseHelper {
       ),
     ];
 
-    for (final cat in categories) {
-      await db.insert('categories', cat.toMap());
+    if (seedCategories) {
+      for (final cat in categories) {
+        await db.insert(
+          'categories',
+          cat.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+      }
     }
 
     // Default Settings
@@ -438,9 +633,17 @@ class DatabaseHelper {
       AppConstants.keyThemeMode: 'system',
     };
 
-    for (final entry in settings.entries) {
-      await db.insert('settings', {'key': entry.key, 'value': entry.value});
+    if (seedSettings) {
+      for (final entry in settings.entries) {
+        await db.insert(
+          'settings',
+          {'key': entry.key, 'value': entry.value},
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+      }
     }
+
+    if (!includeSample) return;
 
     // Seed realistic sample active bundle for immediate preview
     final expiry = DateTime.now().add(const Duration(days: 20));
@@ -459,7 +662,11 @@ class DatabaseHelper {
       status: 'active',
       sourceMessage: '[Sample Preview] Dear customer, your remaining data balance is 7.20 GB valid until ${expiry.toIso8601String().substring(0, 10)}.',
     );
-    await db.insert('telecom_bundles', sampleBundle.toMap());
+    await db.insert(
+      'telecom_bundles',
+      sampleBundle.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
 
     final sampleObs = BundleObservationModel(
       id: 'obs_sample_1',
@@ -470,7 +677,11 @@ class DatabaseHelper {
       estimatedUsageSincePrevious: 0.80,
       sourceMessage: sampleBundle.sourceMessage ?? '',
     );
-    await db.insert('telecom_observations', sampleObs.toMap());
+    await db.insert(
+      'telecom_observations',
+      sampleObs.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
   }
 
   /// Wipe all data and re-seed
