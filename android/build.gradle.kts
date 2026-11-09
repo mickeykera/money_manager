@@ -1,5 +1,9 @@
 allprojects {
     repositories {
+        // CI seeds the Kotlin compiler here (tool/fetch_kotlin_compiler.sh)
+        // because Maven Central is occasionally redirected to a GitHub release
+        // download that answers HTTP 504 on hosted runners.
+        mavenLocal()
         google()
         mavenCentral()
     }

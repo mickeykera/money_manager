@@ -91,6 +91,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: bash tool/fetch_sqlite_assets.sh
 
+      # Maven Central occasionally redirects the large Kotlin compiler jar to a
+      # GitHub release download that answers 504 on hosted runners. Seed the
+      # jar from the GitHub API into the local Maven repository.
+      - name: Prefetch Kotlin compiler
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tool/fetch_kotlin_compiler.sh
+
       - name: Analyze
         run: flutter analyze
 
