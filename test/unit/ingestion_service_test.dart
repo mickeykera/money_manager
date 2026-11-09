@@ -531,6 +531,26 @@ void main() {
       );
     });
 
+    test('Telebirr airtime-received receipts do not credit the wallet', () async {
+      const receipt =
+          'Dear Customer\nYou have received ETB 250.00 airtime from '
+          '251936650202 on 16/10/2026 18:02:41. Your transaction number is '
+          'DJG0VEEI8K.\nThank you for using telebirr\nethio telecom';
+      final res = await ingestionService.processIncomingSms(
+        rawMessage: receipt,
+        sender: '127',
+        messageTime: DateTime(2026, 10, 16, 18, 2, 41),
+      );
+
+      expect(res.success, isFalse);
+      expect(res.transaction, isNull);
+      expect(res.reconciledAccountId, isNull);
+      expect(
+        (await accountRepo.getAccountById('acc_telebirr'))?.balanceSantims,
+        200000,
+      );
+    });
+
     test('deletePrepaidAirtimeSmsTransactions removes only airtime notice rows', () async {
       final now = DateTime.now().millisecondsSinceEpoch;
       Future<void> insert(String id, String original, int amount) async {
@@ -565,6 +585,13 @@ void main() {
             'account using telebirr SuperApp Day Deal airtime recharge.',
         8750,
       );
+      await insert(
+        'tx_airtime_received',
+        'Dear Customer\nYou have received ETB 250.00 airtime from '
+            '251936650202 on 16/10/2026 18:02:41. Your transaction number is '
+            'DJG0VEEI8K.\nThank you for using telebirr\nethio telecom',
+        25000,
+      );
       // A genuine Telebirr wallet airtime purchase must survive.
       await insert(
         'tx_real_airtime',
@@ -575,7 +602,7 @@ void main() {
       );
 
       final removed = await txRepo.deletePrepaidAirtimeSmsTransactions();
-      expect(removed, equals(2));
+      expect(removed, equals(3));
 
       final remaining = await txRepo.getTransactions(const FilterCriteria());
       expect(remaining.length, equals(1));

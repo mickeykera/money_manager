@@ -82,6 +82,7 @@ class TransactionRepository {
       '%remaining amount from Bonus Fund%',
       '%Day Deal airtime recharge%',
       '%successfully redeemed Airtime%',
+      '%airtime from%',
     ];
     final clauses = List.filled(patterns.length, 'original_message LIKE ?');
     return db.delete(

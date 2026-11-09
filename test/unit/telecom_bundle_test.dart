@@ -63,6 +63,18 @@ void main() {
         isFalse,
       );
 
+      // Airtime received from another subscriber is prepaid credit, not wallet
+      // money, even though Telebirr sends it from 127.
+      expect(
+        TelecomTextUtils.isPrepaidAirtimeNotice(
+          'Dear Customer\nYou have received ETB 250.00 airtime from '
+          '251936650202 on 16/10/2026 18:02:41. Your transaction number is '
+          'DJG0VEEI8K.\nThank you for using telebirr\nethio telecom',
+          '127',
+        ),
+        isTrue,
+      );
+
       // Genuine Telebirr airtime purchase paid from the wallet.
       expect(
         TelecomTextUtils.isPrepaidAirtimeNotice(

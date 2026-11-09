@@ -396,11 +396,20 @@ class TelecomTextUtils {
   };
 
   static bool isPrepaidAirtimeNotice(String message, String? sender) {
+    final lower = message.toLowerCase();
+
+    // Airtime received from another subscriber is prepaid SIM credit, not
+    // mobile-money. Telebirr sends these from the shared 127 short code, so the
+    // sender alone cannot distinguish them from wallet movements.
+    final isAirtimeReceipt =
+        (lower.contains('received') && lower.contains('airtime')) ||
+        lower.contains('airtime from') ||
+        lower.contains('airtime transfer');
+    if (isAirtimeReceipt) return true;
+
     if (sender == null) return false;
     final normalized = normalizeSender(sender);
     if (!ethioServiceSenderIds.contains(normalized)) return false;
-
-    final lower = message.toLowerCase();
 
     // A genuine Telebirr wallet movement is still financial even when it is
     // delivered from the service short code.
