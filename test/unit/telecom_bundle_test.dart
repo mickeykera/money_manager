@@ -268,6 +268,85 @@ void main() {
 
       expect(result.isRecognized, isFalse);
     });
+
+    test('purchase detection only matches completed actions', () {
+      expect(
+        TelecomTextUtils.isPurchase('You have successfully purchased 1GB'),
+        isTrue,
+      );
+      expect(
+        TelecomTextUtils.isPurchase('You have activated a monthly plan'),
+        isTrue,
+      );
+      expect(
+        TelecomTextUtils.isPurchase('Activate your 3GB bundle now'),
+        isFalse,
+      );
+      expect(
+        TelecomTextUtils.isPurchase('To purchase a new bundle dial *777#'),
+        isFalse,
+      );
+      expect(TelecomTextUtils.isPurchase('Subscribe now'), isFalse);
+      expect(TelecomTextUtils.isPurchase('Renew today'), isFalse);
+    });
+
+    test('rejects the fair-user-policy informational notice', () {
+      const sms =
+          'Dear customer, monthly unlimited have no FUP, for any additional '
+          'information about fair user policy, please refer to our website. '
+          'Thank you, have a nice time.';
+      final result = parser.parse(sms, '251994');
+
+      expect(result.isRecognized, isFalse);
+    });
+
+    test('rejects service offer suspended/resumed notices', () {
+      const suspended =
+          'Dear ANDUALEM TESHOME GASHAW Your 0936650202 service offer Monthly '
+          'Recurring 140 Min and 35 SMS rollover pack is suspended as of '
+          '12-12-2024. Send SMS to 8994 for support. Ethio telecom';
+      const resumed =
+          'Dear Mr. michael Your 0905498267 service offer 300MB Bonus For '
+          'Three Months, Monthly SIM Starter_115Min Voice Package Plus 1GB '
+          'data Bonus is resumed as of 09-05-2026. Thank you Ethio telecom';
+
+      expect(parser.parse(suspended, '994').isRecognized, isFalse);
+      expect(parser.parse(resumed, '994').isRecognized, isFalse);
+    });
+
+    test('real activation with support footer is unlimited internet', () {
+      const sms = 'Dear Customer \n'
+          'As per your request, the new service offer Monthly Unlimited '
+          'Premium Internet plan to be expired after 30 days is added to your '
+          'service number 0986402248. The offer is effective as of Oct 16, '
+          '2026 6:09:08 PM and will be expired on Nov 15, 2026 6:09:08 PM.\n'
+          'Thank you for using our service! Kindly share your experience with '
+          'us by clicking the link: https://forms.office.com/r/QjPuVbGN9t \n'
+          'For more information or assistance, please send an SMS to 8994 or '
+          'visit: https://telehub.ethiotelecom.et \n'
+          'Happy New Year!\n'
+          'Ethio telecom';
+      final result = parser.parse(sms, '994');
+
+      expect(result.isRecognized, isTrue);
+      expect(result.category, equals(AppConstants.bundleCategoryUnlimited));
+      expect(
+        result.bundleName,
+        equals('Monthly Unlimited Premium Internet'),
+      );
+      expect(result.expiryTime, isNotNull);
+      expect(result.expiryTime!.month, equals(11));
+      expect(result.expiryTime!.day, equals(15));
+    });
+
+    test('rejects Amharic annual-package advertisement', () {
+      const sms = 'የአንድ ዓመት ጥቅል ገዝተው ስልክ በነጻ ይውሰዱ!\n\n'
+          'ዘኔክሰስ L131፡ በየወሩ 50 ብር ብቻ የአየር ሰዓት በመሙላት ቅድሚያ የከፈሉት ብር '
+          'ለ1 ዓመት በየወሩ በ4GB +80Min+50SMS መልኩ ተመላሽ ይሆናል።\n\n'
+          'በአገልግሎት ማዕከሎቻችን ያገኟቸዋል!\n\nኢትዮ ቴሌኮም';
+
+      expect(parser.parse(sms, 'ethio tel').isRecognized, isFalse);
+    });
   });
 
   group('SafaricomTelecomParser Tests', () {
@@ -385,6 +464,51 @@ void main() {
           'Recharge of Br. 10.00 was successful. Balance: Br. 69.00. '
           'To get 200GB and 500GB MEGA internet packages dial *704#.';
       final result = parser.parse(sms, '700');
+
+      expect(result.isRecognized, isFalse);
+    });
+
+    test('rejects promotional bundle advertisements', () {
+      const promos = <String>[
+        'Your squad is waiting! Activate your 3GB PUBG Gaming Bundle valid '
+            'for 24hrs at only 50 ETB. Dial *777*3*1# now!',
+        'Don’t miss out!  Enjoy daily 24 minutes ( 12 tele minutes + 12 '
+            'Safaricom minutes) for just 5 Birr and talk more with your loved '
+            'ones.  To buy the package Dial *777*1*1*1# Today!',
+        'Call anyone, anytime and anywhere! Enjoy 120 weekly minutes for only '
+            '30 birr. Dial *777*1# today!',
+        '30 Birr for 120 Tele minutes, 7 days! Call anyone on the Tele network '
+            'with Tele Bundles. Dial *777*1# to buy now.',
+        'Exciting news! Call Safaricom & Tele numbers with one bundle. '
+            'Dial *777# and select Tele Minutes.',
+        'Happy Customer Service Week! Thank you for being part of our 15 '
+            'million subscriber family. Get unlimited weekly '
+            'Safaricom-to-Safaricom calls for only 20 Br.',
+        '30 birr = 120 Mins + 120 Mins, ALL weekly & monthly package doubled '
+            'for New year',
+        'One Bundle- Call anyone. Now with tele bundles you can call both '
+            'Safaricom and Tele. Dial *777#, select Tele Minutes.',
+        'Unlimited weekly minutes for just 20 Birr! Dail *777# and select '
+            'Besh.',
+        'Unlimited minutes for just 5 Birr! Dail *777# and select Besh.',
+        'More Value, Up to 2X Data! Dial *777#, select BESH.',
+        'FREE 50MB + 10  minutes! For you, Dial *777# and select BESH to get '
+            'amazing offers!',
+        'More for you, every day. Dial *777# and select besh to discover '
+            "today's personalized offer.",
+      ];
+
+      for (final sms in promos) {
+        final result = parser.parse(sms, 'Safaricom');
+        expect(result.isRecognized, isFalse, reason: sms);
+      }
+    });
+
+    test('Wullo expiry notice is not a purchase', () {
+      const sms =
+          'Dear Customer. Your Wullo Unlimited Internet has expired. To '
+          'purchase a new bundle, please dial *777# Thank you.';
+      final result = parser.parse(sms, 'Safaricom');
 
       expect(result.isRecognized, isFalse);
     });
@@ -903,6 +1027,42 @@ void main() {
       expect(res.transaction, isNull);
       expect(await bundleRepo.getAllBundles(), isEmpty);
       expect(await txRepo.getTransactions(const FilterCriteria()), isEmpty);
+    });
+
+    test('promotional SMS creates no bundle or transaction', () async {
+      const sms =
+          'Your squad is waiting! Activate your 3GB PUBG Gaming Bundle valid '
+          'for 24hrs at only 50 ETB. Dial *777*3*1# now!';
+      final res = await ingestionService.processIncomingSms(
+        rawMessage: sms,
+        sender: 'Safaricom',
+        messageTime: DateTime(2026, 10, 17, 9, 58),
+      );
+
+      expect(res.success, isFalse);
+      expect(res.isTelecomUpdate, isFalse);
+      expect(res.transaction, isNull);
+      expect(await bundleRepo.getAllBundles(), isEmpty);
+      expect(await txRepo.getTransactions(const FilterCriteria()), isEmpty);
+    });
+
+    test('genuine Wullo purchase still creates its expense', () async {
+      const sms =
+          'You have successfully purchased Wullo Unlimited Internet for '
+          'Br.60 valid from 6AM to 6PM during the day. '
+          'Expiry date: 16-10-2026 18:00:00';
+      final res = await ingestionService.processIncomingSms(
+        rawMessage: sms,
+        sender: 'Safaricom',
+        messageTime: DateTime(2026, 10, 16, 11, 15),
+      );
+
+      expect(res.success, isTrue);
+      expect(res.isTelecomUpdate, isTrue);
+      expect(res.transaction, isNotNull);
+      expect(res.transaction!.amountSantims, equals(6000));
+      expect(res.transaction!.merchant, contains('Wullo Unlimited Internet'));
+      expect(await bundleRepo.getAllBundles(), hasLength(1));
     });
   });
 }

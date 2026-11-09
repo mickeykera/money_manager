@@ -120,6 +120,7 @@ class AppState extends ChangeNotifier {
     // and mark bundles whose expiry date has passed as expired.
     try {
       await _transactionRepo.deleteZeroAmountSmsTransactions();
+      await _transactionRepo.deletePromotionalSmsTransactions();
       await _bundleRepo.expireOutdatedBundles();
     } catch (_) {
       // Startup cleanup is best-effort; never block the app from opening.
@@ -223,6 +224,7 @@ class AppState extends ChangeNotifier {
   Future<void> prepareForFullSmsRescan() async {
     await _transactionRepo.deleteZeroAmountSmsTransactions();
     await _transactionRepo.deletePrepaidAirtimeSmsTransactions();
+    await _transactionRepo.deletePromotionalSmsTransactions();
     await _bundleRepo.clearAllBundles();
   }
 

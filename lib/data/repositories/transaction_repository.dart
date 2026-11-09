@@ -92,6 +92,36 @@ class TransactionRepository {
     );
   }
 
+  /// Removes SMS transactions created by older builds from bundle marketing
+  /// messages. These ads quote a price and a bundle size, so they used to be
+  /// recorded as expenses even though nothing was purchased. Patterns are
+  /// specific to known advertisements so genuine bundle purchases survive.
+  Future<int> deletePromotionalSmsTransactions() async {
+    final db = await _dbHelper.database;
+    const patterns = <String>[
+      '%Your squad is waiting%',
+      '%PUBG Gaming Bundle%',
+      '%Don’t miss out%',
+      "%Don't miss out%",
+      '%Call anyone, anytime%',
+      '%Call anyone on the Tele network%',
+      '%Exciting news%',
+      '%Happy Customer Service Week%',
+      '%One Bundle-%',
+      '%weekly & monthly package doubled%',
+      '%package doubled for New year%',
+      '%weekly minutes for only%',
+      '%for just 5 Birr%',
+      '%at only 50 ETB%',
+    ];
+    final clauses = List.filled(patterns.length, 'original_message LIKE ?');
+    return db.delete(
+      'transactions',
+      where: 'source = ? AND (${clauses.join(' OR ')})',
+      whereArgs: [AppConstants.sourceSms, ...patterns],
+    );
+  }
+
   Future<void> _applyBalanceChange(
     DatabaseExecutor txn,
     String accountId,

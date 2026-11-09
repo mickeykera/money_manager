@@ -608,5 +608,63 @@ void main() {
       expect(remaining.length, equals(1));
       expect(remaining.single.id, equals('tx_real_airtime'));
     });
+
+    test('deletePromotionalSmsTransactions removes only promo rows', () async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      Future<void> insert(String id, String original, int amount) async {
+        await db.insert('transactions', {
+          'id': id,
+          'amount_santims': amount,
+          'currency': 'ETB',
+          'type': 'expense',
+          'merchant': 'Safaricom Ethiopia',
+          'timestamp': now,
+          'timezone_offset_minutes': 180,
+          'category_id': 'cat_other',
+          'account_id': 'acc_telebirr',
+          'source': AppConstants.sourceSms,
+          'import_status': AppConstants.statusPosted,
+          'original_message': original,
+          'is_reviewed': 1,
+          'created_at': now,
+          'updated_at': now,
+        });
+      }
+
+      await insert(
+        'tx_pubg',
+        'Your squad is waiting! Activate your 3GB PUBG Gaming Bundle valid '
+            'for 24hrs at only 50 ETB. Dial *777*3*1# now!',
+        5000,
+      );
+      await insert(
+        'tx_dont_miss',
+        'Don’t miss out!  Enjoy daily 24 minutes ( 12 tele minutes + 12 '
+            'Safaricom minutes) for just 5 Birr and talk more with your loved '
+            'ones.  To buy the package Dial *777*1*1*1# Today!',
+        500,
+      );
+      await insert(
+        'tx_doubled',
+        '30 birr = 120 Mins + 120 Mins, ALL weekly & monthly package doubled '
+            'for New year',
+        3000,
+      );
+      // A genuine bundle purchase must survive.
+      await insert(
+        'tx_wullo',
+        'You have successfully purchased Wullo Unlimited Internet for Br.60 '
+            'valid from 6AM to 6PM during the day. '
+            'Expiry date: 16-10-2026 18:00:00',
+        6000,
+      );
+
+      final removed = await txRepo.deletePromotionalSmsTransactions();
+      expect(removed, equals(3));
+
+      final remaining = await txRepo.getTransactions(const FilterCriteria());
+      expect(remaining.length, equals(1));
+      expect(remaining.single.id, equals('tx_wullo'));
+    });
   });
 }

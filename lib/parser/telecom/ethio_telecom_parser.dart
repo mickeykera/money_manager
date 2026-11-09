@@ -81,6 +81,20 @@ class EthioTelecomParser {
     final isPurchase = TelecomTextUtils.isPurchase(message);
     final isBalanceUpdate = TelecomTextUtils.isBalanceUpdate(message);
 
+    // Support/FUP notices and marketing offers are not package activations.
+    if (TelecomTextUtils.isInformationalNotice(message)) {
+      return TelecomParseResult.unrecognized(
+        message,
+        reason: 'Informational service notice, not a package activation',
+      );
+    }
+    if (TelecomTextUtils.isPromotionalOffer(message) && !isPurchase) {
+      return TelecomParseResult.unrecognized(
+        message,
+        reason: 'Promotional bundle offer, not a purchase',
+      );
+    }
+
     // Unlimited plans have no numeric allowance. They are defined by their
     // activation and expiry dates instead.
     if (TelecomTextUtils.isUnlimited(message)) {

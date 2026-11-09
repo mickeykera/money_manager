@@ -68,6 +68,20 @@ class SafaricomTelecomParser {
     final isPurchase = TelecomTextUtils.isPurchase(message);
     final isBalanceUpdate = TelecomTextUtils.isBalanceUpdate(message);
 
+    // Support/FUP notices and marketing offers are not package activations.
+    if (TelecomTextUtils.isInformationalNotice(message)) {
+      return TelecomParseResult.unrecognized(
+        message,
+        reason: 'Informational service notice, not a package activation',
+      );
+    }
+    if (TelecomTextUtils.isPromotionalOffer(message) && !isPurchase) {
+      return TelecomParseResult.unrecognized(
+        message,
+        reason: 'Promotional bundle offer, not a purchase',
+      );
+    }
+
     // Airtime recharge receipts mention data packages in their marketing text
     // ("To get 200GB ... dial ..."). They are not bundle purchases.
     final lower = message.toLowerCase();

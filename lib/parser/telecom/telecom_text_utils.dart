@@ -188,9 +188,12 @@ class TelecomTextUtils {
     return TelecomAllowance(parseNumber(match.group(1)!), 'SMS');
   }
 
+  /// Only completed actions count as a purchase. Imperative marketing text
+  /// ("Activate your 3GB bundle", "To purchase a new bundle dial *777#") must
+  /// not be mistaken for a real purchase, otherwise promos create ledger rows.
   static final RegExp purchasePattern = RegExp(
-    r'\b(purchased|purchase|buy|bought|recharged|recharge|subscribed|'
-    r'subscribe|renewed|renew|activated|activate|topped?\s*up|top\s*up)\b',
+    r'\b(purchased|bought|recharged|subscribed|renewed|activated|'
+    r'topped\s*up)\b',
     caseSensitive: false,
   );
 
@@ -205,6 +208,74 @@ class TelecomTextUtils {
         message.contains('አስገብተዋል') ||
         message.contains('ተመዝግቧል') ||
         message.contains('ተጨምሯል');
+  }
+
+  /// Marketing/bundle-advertisement messages that are not purchases. These
+  /// often contain a bundle size and a price, so without this guard they look
+  /// like a purchase to the parser and create phantom bundles and expenses.
+  static bool isPromotionalOffer(String message) {
+    final lower = message.toLowerCase();
+
+    // Wording that only appears in advertising, never in a receipt.
+    final strongMarkers = <String>[
+      'your squad is waiting',
+      'pubg gaming bundle',
+      'don’t miss out',
+      "don't miss out",
+      'exciting news',
+      'customer service week',
+      'one bundle-',
+      'one bundle –',
+      'call anyone',
+      'package doubled',
+      'doubled for new year',
+      'select besh',
+      'up to 2x data',
+      'more value',
+      'free 50mb',
+    ];
+    if (strongMarkers.any(lower.contains)) return true;
+
+    // Amharic advertising language ("for free", "only", "will be returned").
+    if (message.contains('በነጻ') ||
+        message.contains('ብቻ') ||
+        message.contains('ተመላሽ ይሆናል') ||
+        message.contains('ያገኟቸዋል')) {
+      return true;
+    }
+
+    final hasCallToAction = RegExp(
+      r'\b(?:dial|dail)\s*\*|\b(?:dial|dail)\s+[0-9*]|\bto buy\b|\bbuy now\b',
+      caseSensitive: false,
+    ).hasMatch(lower);
+    if (!hasCallToAction) return false;
+
+    return lower.contains('for only') ||
+        lower.contains('for just') ||
+        lower.contains('at only') ||
+        lower.contains('only ') ||
+        lower.contains('just ') ||
+        lower.contains('valid for') ||
+        lower.contains('enjoy ');
+  }
+
+  /// Service/support notices that mention packages but do not activate one,
+  /// such as fair-use-policy explanations and SIM self-service menus.
+  static bool isInformationalNotice(String message) {
+    final lower = message.toLowerCase();
+    return lower.contains('fair user policy') ||
+        lower.contains('no fup') ||
+        lower.contains('have no fup') ||
+        lower.contains('self-service') ||
+        lower.contains('for language change') ||
+        lower.contains('to get support') ||
+        lower.contains('support regarding telebirr') ||
+        lower.contains('thank you for contacting us') ||
+        lower.contains('welcome to ethio telecom') ||
+        lower.contains('sim lost') ||
+        lower.contains('puk request') ||
+        lower.contains('is suspended') ||
+        lower.contains('is resumed');
   }
 
   static bool isBalanceUpdate(String message) {
@@ -328,23 +399,75 @@ class TelecomTextUtils {
   }
 
   /// Category for an unlimited plan: SMS, voice, or general internet/data.
+  ///
+  /// The plan name wins over footer text. Ethio telecom activation SMS end with
+  /// "please send an SMS to 8994", which used to make an unlimited *internet*
+  /// plan look like an SMS plan.
   static String unlimitedCategory(String message) {
-    final lower = message.toLowerCase();
+    final planName = unlimitedPlanName(message);
+    if (planName != null) {
+      final name = planName.toLowerCase();
+      if (name.contains('sms') || name.contains('text')) {
+        return AppConstants.bundleCategorySms;
+      }
+      if (name.contains('voice') ||
+          name.contains('minute') ||
+          name.contains('call')) {
+        return AppConstants.bundleCategoryVoice;
+      }
+      if (name.contains('internet') ||
+          name.contains('data') ||
+          name.contains('wullo')) {
+        return AppConstants.bundleCategoryUnlimited;
+      }
+    }
+
+    final body = stripSupportFooter(message);
+    final lower = body.toLowerCase();
     final mentionsSms = RegExp(r'\bsms\b|texts?\b', caseSensitive: false)
             .hasMatch(lower) ||
-        message.contains('ኤስኤምኤስ') ||
-        message.contains('ጽሑፍ');
+        body.contains('ኤስኤምኤስ') ||
+        body.contains('ጽሑፍ');
     if (mentionsSms) return AppConstants.bundleCategorySms;
 
     final mentionsVoice = RegExp(
       r'\b(voice|minutes?|mins?|calls?)\b',
       caseSensitive: false,
     ).hasMatch(lower) ||
-        message.contains('ደቂቃ') ||
-        message.contains('ጥሪ');
+        body.contains('ደቂቃ') ||
+        body.contains('ጥሪ');
     if (mentionsVoice) return AppConstants.bundleCategoryVoice;
 
     return AppConstants.bundleCategoryUnlimited;
+  }
+
+  static const List<String> _supportFooterMarkers = <String>[
+    'send an sms to',
+    'for more information',
+    'for any additional information',
+    'kindly share your experience',
+    'thank you for using our service',
+    'thank you, ethio telecom',
+    'thank you! ethio telecom',
+    'thank you ethio telecom',
+    'have a nice time',
+    'have a wonderful time',
+    'we are always delighted',
+    'happy new year',
+    'happy holiday',
+  ];
+
+  /// Drops the support/marketing footer that telecom operators append to
+  /// activation SMS. The footer mentions "SMS" and support numbers, which must
+  /// not influence how the package itself is categorized.
+  static String stripSupportFooter(String message) {
+    final lower = message.toLowerCase();
+    var cut = message.length;
+    for (final marker in _supportFooterMarkers) {
+      final index = lower.indexOf(marker);
+      if (index >= 0 && index < cut) cut = index;
+    }
+    return message.substring(0, cut).trim();
   }
 
   /// Pulls a readable plan name out of activation/reminder messages such as
@@ -367,10 +490,23 @@ class TelecomTextUtils {
     ];
     for (final pattern in patterns) {
       final match = pattern.firstMatch(message);
-      final name = match?.group(1)?.trim();
-      if (name != null && name.isNotEmpty) return name;
+      final name = _cleanPlanName(match?.group(1) ?? '');
+      if (name.isNotEmpty) return name;
     }
     return null;
+  }
+
+  static String _cleanPlanName(String raw) {
+    var name = raw.trim();
+    name = name.replaceFirst(
+      RegExp(r'^(?:a|an|the)\s+', caseSensitive: false),
+      '',
+    );
+    name = name.replaceFirst(
+      RegExp(r'\s+(?:monthly|weekly|daily|plan)$', caseSensitive: false),
+      '',
+    );
+    return name.trim();
   }
 
   /// Messages such as "Your Wullo Unlimited Internet has expired" are
