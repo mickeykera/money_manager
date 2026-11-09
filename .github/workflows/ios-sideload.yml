@@ -108,6 +108,14 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # GitHub's release-asset download endpoint intermittently returns 504 on
+      # hosted runners, which breaks package:sqlite3's build hook. Fetch the
+      # prebuilt binaries through the REST API instead.
+      - name: Prefetch SQLite native assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tool/fetch_sqlite_assets.sh
+
       - name: Analyze
         run: flutter analyze
 
