@@ -34,6 +34,9 @@ class SafaricomTelecomParser {
     'abyssinia',
     'dashen',
     'amole',
+    // M-PESA alerts are financial messages handled by the money parser. Their
+    // marketing footers mention Safaricom data bundles ("Get extra 20MB ...").
+    'mpesa',
   };
 
   bool canParse(String message, String? sender) {

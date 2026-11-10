@@ -400,6 +400,29 @@ class IngestionService {
       asOf: timestamp,
     );
 
+    // A bare balance/usage snippet with no expiry cannot be attributed to a
+    // package. Without this guard every old "12 mins remaining" or marketing
+    // "20MB" message invents a permanent, no-expiry bundle.
+    final canTrackBundle = telecomResult.isPurchase ||
+        existingBundle != null ||
+        telecomResult.expiryTime != null;
+    if (!canTrackBundle) {
+      await _logIngestion(
+        sender: sender,
+        snippet: sanitizedSnippet,
+        status: 'telecom_untracked',
+        amount: telecomResult.purchasePriceSantims,
+        confidence: telecomResult.confidenceScore,
+        error: 'Balance update without an active package or expiry date',
+      );
+      return IngestionResponse(
+        success: false,
+        message:
+            'Telecom balance update could not be matched to a tracked package.',
+        telecomResult: telecomResult,
+      );
+    }
+
     String bundleId;
     if (telecomResult.isPurchase || existingBundle == null) {
       bundleId = uuid.v4();

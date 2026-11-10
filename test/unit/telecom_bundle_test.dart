@@ -512,6 +512,19 @@ void main() {
 
       expect(result.isRecognized, isFalse);
     });
+
+    test('M-PESA marketing footers are not telecom bundles', () {
+      const sms =
+          'Dear Michael, you have bought 20.00 Birr of airtime for your phone '
+          'on 10/1/26 10:48 AM. Transaction number UAA3CWKSHT. Transaction '
+          'Fee 0.00 Birr. Your new M-PESA balance is 0.00 Birr. Get extra 20MB '
+          'when you buy 100MB daily bundle via M-PESA for 5 birr. To buy click '
+          'https://bit.ly/M-PESA-SAFARICOM-ETHIOPIA.';
+
+      expect(parser.canParse(sms, 'MPESA'), isFalse);
+      // The ingestion pipeline only calls parse() after canParse() succeeds, so
+      // this M-PESA receipt can never create a telecom bundle.
+    });
   });
 
   group('BundleRepository & Usage Tracking Tests', () {
@@ -1044,6 +1057,21 @@ void main() {
       expect(res.transaction, isNull);
       expect(await bundleRepo.getAllBundles(), isEmpty);
       expect(await txRepo.getTransactions(const FilterCriteria()), isEmpty);
+    });
+
+    test('balance update with no expiry does not invent a bundle', () async {
+      const sms =
+          'Dear customer, your remaining package balance is 12 Minutes.';
+      final res = await ingestionService.processIncomingSms(
+        rawMessage: sms,
+        sender: '994',
+        messageTime: DateTime(2026, 10, 16, 12, 0),
+      );
+
+      expect(res.success, isFalse);
+      expect(res.isTelecomUpdate, isFalse);
+      expect(res.transaction, isNull);
+      expect(await bundleRepo.getAllBundles(), isEmpty);
     });
 
     test('genuine Wullo purchase still creates its expense', () async {
