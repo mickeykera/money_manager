@@ -398,17 +398,21 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                         radius: 9,
                       ),
                       const SizedBox(width: 10),
-                      Text(
-                        'Apple Shortcuts',
-                        style: TextStyle(
-                          fontFamily: AppTheme.fontFamily,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0,
-                          color: AppColors.textPrimaryOf(context),
+                      Expanded(
+                        child: Text(
+                          'Apple Shortcuts',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: AppTheme.fontFamily,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0,
+                            color: AppColors.textPrimaryOf(context),
+                          ),
                         ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: 8),
                       Builder(
                         builder: (context) {
                           final smsTransactions = appState.transactions
@@ -696,19 +700,23 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                 radius: 9,
               ),
               const SizedBox(width: 10),
-              Text(
-                'Android SMS import',
-                style: TextStyle(
-                  fontFamily: AppTheme.fontFamily,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0,
-                  color: AppColors.textPrimaryOf(context),
+              Expanded(
+                child: Text(
+                  'Android SMS import',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: AppTheme.fontFamily,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                    color: AppColors.textPrimaryOf(context),
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               SkeuoBadge(
-                label: connected ? 'Permission granted' : 'Permission needed',
+                label: connected ? 'Granted' : 'Needed',
                 icon: Icons.circle,
                 tone: connected
                     ? SkeuoBadgeTone.accent

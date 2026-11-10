@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'core/constants/app_constants.dart';
@@ -16,6 +17,25 @@ import 'presentation/widgets/skeuomorphic.dart';
 import 'services/android_sms_service.dart';
 import 'services/app_state.dart';
 import 'services/native_bridge.dart';
+
+/// Keeps the system status and navigation bars legible against the app's
+/// warm stone (light) or charcoal (dark) material.
+Widget _wrapWithSystemChrome(BuildContext context, Widget child) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  return AnnotatedRegion<SystemUiOverlayStyle>(
+    value: (isDark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark)
+        .copyWith(
+      statusBarColor: Colors.transparent,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarIconBrightness:
+          isDark ? Brightness.light : Brightness.dark,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+    ),
+    child: child,
+  );
+}
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -245,8 +265,9 @@ class _LedgerLeafAppState extends State<LedgerLeafApp> {
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: _appState!.themeMode,
-            builder: (context, child) => SkeuoBackdrop(
-              child: child ?? const SizedBox.shrink(),
+            builder: (context, child) => _wrapWithSystemChrome(
+              context,
+              SkeuoBackdrop(child: child ?? const SizedBox.shrink()),
             ),
             home: _onboardingCompleted
                 ? MainNavigationShell(appState: _appState!)
@@ -265,8 +286,9 @@ class _LedgerLeafAppState extends State<LedgerLeafApp> {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
-      builder: (context, child) => SkeuoBackdrop(
-        child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => _wrapWithSystemChrome(
+        context,
+        SkeuoBackdrop(child: child ?? const SizedBox.shrink()),
       ),
       home: _status == StartupStatus.loading
           ? const StartupLoadingView()

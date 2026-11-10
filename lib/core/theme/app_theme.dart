@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// LedgerLeaf visual language: dark graphite and warm stone, with antique
 /// brass used sparingly in menus and small accents. Surfaces are layered like
@@ -317,6 +318,15 @@ class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
+        systemOverlayStyle: isDark
+            ? SystemUiOverlayStyle.light.copyWith(
+                statusBarColor: Colors.transparent,
+                systemNavigationBarColor: Colors.transparent,
+              )
+            : SystemUiOverlayStyle.dark.copyWith(
+                statusBarColor: Colors.transparent,
+                systemNavigationBarColor: Colors.transparent,
+              ),
         titleTextStyle: TextStyle(
           fontFamily: fontFamily,
           color: onSurface,

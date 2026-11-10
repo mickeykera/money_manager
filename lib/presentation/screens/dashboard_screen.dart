@@ -310,7 +310,7 @@ class DashboardScreen extends StatelessWidget {
 
             // Horizontal Linked Accounts Cards
             SizedBox(
-              height: 128,
+              height: 112,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: appState.accounts.length,

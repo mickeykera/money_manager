@@ -157,6 +157,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           children: [
             // Transaction Type Selector (Expense, Income, Transfer, Refund, Reversal)
             SegmentedButton<String>(
+              showSelectedIcon: false,
+              style: ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                textStyle: WidgetStatePropertyAll(
+                  TextStyle(
+                    fontFamily: AppTheme.fontFamily,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
               segments: const [
                 ButtonSegment(value: AppConstants.typeExpense, label: Text('Expense')),
                 ButtonSegment(value: AppConstants.typeIncome, label: Text('Income')),
@@ -216,6 +227,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         ),
                         hintText: '0.00',
                         border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
                         filled: false,
                         contentPadding: EdgeInsets.zero,
                       ),
