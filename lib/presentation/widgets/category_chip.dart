@@ -16,8 +16,9 @@ class CategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final catColor = Color(category.colorValue);
+    final isDark = AppColors.isDark(context);
+    final accent = AppColors.accentOf(context);
+    final selectedInk = isDark ? const Color(0xFF15130D) : const Color(0xFFF7F2E7);
 
     return FilterChip(
       selected: isSelected,
@@ -25,22 +26,21 @@ class CategoryChip extends StatelessWidget {
       avatar: Icon(
         IconData(category.iconCodePoint, fontFamily: 'MaterialIcons'),
         size: 16,
-        color: isSelected ? Colors.white : catColor,
+        color: isSelected ? selectedInk : AppColors.textSecondaryOf(context),
       ),
       label: Text(
         category.name,
         style: TextStyle(
+          fontFamily: AppTheme.fontFamily,
           fontSize: 13,
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-          color: isSelected
-              ? Colors.white
-              : (isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary),
+          color: isSelected ? selectedInk : AppColors.textPrimaryOf(context),
         ),
       ),
-      backgroundColor: isDark ? AppColors.darkCard : AppColors.lightCard,
-      selectedColor: catColor,
+      backgroundColor: isDark ? const Color(0xFF191C1E) : const Color(0xFFF1ECE1),
+      selectedColor: accent,
       side: BorderSide(
-        color: isSelected ? catColor : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+        color: isSelected ? accent : AppColors.borderOf(context),
         width: 1,
       ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

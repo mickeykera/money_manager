@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
+import '../widgets/skeuomorphic.dart';
 import '../../domain/models/budget_summary.dart';
 import '../../services/app_state.dart';
 
@@ -48,33 +49,35 @@ class BudgetsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryTextColor = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final secondaryTextColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final primaryTextColor = AppColors.textPrimaryOf(context);
+    final secondaryTextColor = AppColors.textSecondaryOf(context);
 
     final summary = appState.dashboardSummary;
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Budgets & Reports'),
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         children: [
-          // Total Budget Hero Card
-          Container(
+          // Total Budget plaque
+          SkeuoPanel(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkCard : AppColors.lightCard,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
-            ),
+            radius: 20,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Total Monthly Budget',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: secondaryTextColor),
+                  'TOTAL MONTHLY BUDGET',
+                  style: TextStyle(
+                    fontFamily: AppTheme.fontFamily,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.2,
+                    color: secondaryTextColor,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -82,29 +85,24 @@ class BudgetsScreen extends StatelessWidget {
                       ? '${Money(summary.totalRemainingBudgetSantims).format()} remaining'
                       : '${Money(-summary.totalRemainingBudgetSantims).format()} over budget',
                   style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
+                    fontFamily: AppTheme.fontFamily,
+                    fontSize: 25,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.6,
                     color: summary.totalRemainingBudgetSantims >= 0
-                        ? (isDark ? AppColors.sageLight : AppColors.sagePrimary)
-                        : AppColors.clayPrimary,
+                        ? AppColors.incomeOf(context)
+                        : AppColors.expenseOf(context),
                   ),
                 ),
                 const SizedBox(height: 14),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: LinearProgressIndicator(
-                    value: summary.totalBudgetSantims > 0
-                        ? (summary.totalExpenseSantims / summary.totalBudgetSantims).clamp(0.0, 1.0)
-                        : 0.0,
-                    minHeight: 10,
-                    backgroundColor: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      summary.totalExpenseSantims > summary.totalBudgetSantims
-                          ? AppColors.clayPrimary
-                          : (isDark ? AppColors.sageLight : AppColors.sagePrimary),
-                    ),
-                  ),
+                SkeuoProgressBar(
+                  value: summary.totalBudgetSantims > 0
+                      ? (summary.totalExpenseSantims / summary.totalBudgetSantims).clamp(0.0, 1.0)
+                      : 0.0,
+                  height: 10,
+                  color: summary.totalExpenseSantims > summary.totalBudgetSantims
+                      ? AppColors.expenseOf(context)
+                      : AppColors.accentOf(context),
                 ),
                 const SizedBox(height: 10),
                 Row(
@@ -127,11 +125,12 @@ class BudgetsScreen extends StatelessWidget {
 
           // Category Budgets Header
           Text(
-            'Category Budgets',
+            'Category budgets',
             style: TextStyle(
-              fontSize: 17,
+              fontFamily: AppTheme.fontFamily,
+              fontSize: 19,
               fontWeight: FontWeight.w700,
-              letterSpacing: -0.4,
+              letterSpacing: -0.1,
               color: primaryTextColor,
             ),
           ),
@@ -148,8 +147,10 @@ class BudgetsScreen extends StatelessWidget {
             final progress = hasBudget ? (cat.spentSantims / cat.budgetSantims).clamp(0.0, 1.0) : 0.0;
             final isOver = cat.isOverBudget;
 
-            return Card(
+            return SkeuoPanel(
               margin: const EdgeInsets.only(bottom: 10),
+              padding: EdgeInsets.zero,
+              radius: 16,
               child: InkWell(
                 onTap: () => _editBudget(context, cat),
                 borderRadius: BorderRadius.circular(16),
@@ -160,17 +161,14 @@ class BudgetsScreen extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Container(
+                          SkeuoInset(
                             width: 36,
                             height: 36,
-                            decoration: BoxDecoration(
-                              color: Color(cat.colorValue).withOpacity(0.14),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
+                            radius: 10,
                             child: Icon(
                               IconData(cat.iconCodePoint, fontFamily: 'MaterialIcons'),
                               size: 18,
-                              color: Color(cat.colorValue),
+                              color: AppColors.accentOf(context),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -181,6 +179,7 @@ class BudgetsScreen extends StatelessWidget {
                                 Text(
                                   cat.categoryName,
                                   style: TextStyle(
+                                    fontFamily: AppTheme.fontFamily,
                                     fontSize: 15,
                                     fontWeight: FontWeight.w600,
                                     color: primaryTextColor,
@@ -194,8 +193,8 @@ class BudgetsScreen extends StatelessWidget {
                                       : 'No budget set (tap to set)',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: isOver ? AppColors.clayPrimary : secondaryTextColor,
-                                    fontWeight: isOver ? FontWeight.bold : FontWeight.normal,
+                                    color: isOver ? AppColors.expenseOf(context) : secondaryTextColor,
+                                    fontWeight: isOver ? FontWeight.w700 : FontWeight.w400,
                                   ),
                                 ),
                               ],
@@ -207,9 +206,10 @@ class BudgetsScreen extends StatelessWidget {
                               Text(
                                 appState.isPrivacyMode ? '••••••' : cat.spent.format(),
                                 style: TextStyle(
+                                  fontFamily: AppTheme.fontFamily,
                                   fontSize: 15,
                                   fontWeight: FontWeight.w700,
-                                  color: isOver ? AppColors.clayPrimary : primaryTextColor,
+                                  color: isOver ? AppColors.expenseOf(context) : primaryTextColor,
                                 ),
                               ),
                               if (hasBudget)
@@ -223,16 +223,12 @@ class BudgetsScreen extends StatelessWidget {
                       ),
                       if (hasBudget) ...[
                         const SizedBox(height: 12),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: progress,
-                            minHeight: 6,
-                            backgroundColor: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              isOver ? AppColors.clayPrimary : Color(cat.colorValue),
-                            ),
-                          ),
+                        SkeuoProgressBar(
+                          value: progress,
+                          height: 7,
+                          color: isOver
+                              ? AppColors.expenseOf(context)
+                              : AppColors.accentOf(context),
                         ),
                       ],
                     ],
@@ -246,45 +242,56 @@ class BudgetsScreen extends StatelessWidget {
 
           // Accounts Balance Summary
           Text(
-            'Accounts Summary',
+            'Accounts summary',
             style: TextStyle(
-              fontSize: 17,
+              fontFamily: AppTheme.fontFamily,
+              fontSize: 19,
               fontWeight: FontWeight.w700,
-              letterSpacing: -0.4,
+              letterSpacing: -0.1,
               color: primaryTextColor,
             ),
           ),
           const SizedBox(height: 12),
-          Container(
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkCard : AppColors.lightCard,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
-            ),
+          SkeuoPanel(
+            padding: EdgeInsets.zero,
+            radius: 16,
             child: Column(
               children: appState.accounts.map((acc) {
                 return Column(
                   children: [
                     ListTile(
-                      leading: Icon(
-                        acc.type == 'mobile_money'
+                      leading: SkeuoIconWell(
+                        icon: acc.type == 'mobile_money'
                             ? Icons.phone_android
                             : (acc.type == 'cash' ? Icons.money : Icons.account_balance),
-                        color: isDark ? AppColors.sageLight : AppColors.sagePrimary,
+                        size: 34,
+                        iconSize: 17,
+                        radius: 10,
                       ),
-                      title: Text(acc.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                      title: Text(
+                        acc.name,
+                        style: TextStyle(
+                          fontFamily: AppTheme.fontFamily,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: primaryTextColor,
+                        ),
+                      ),
                       subtitle: acc.accountNumberMasked != null ? Text(acc.accountNumberMasked!) : null,
                       trailing: Text(
                         appState.isPrivacyMode ? '••••••' : acc.balance.format(),
                         style: TextStyle(
+                          fontFamily: AppTheme.fontFamily,
                           fontWeight: FontWeight.w700,
                           fontSize: 14,
-                          color: acc.balance.isNegative ? AppColors.clayPrimary : primaryTextColor,
+                          color: acc.balance.isNegative
+                              ? AppColors.expenseOf(context)
+                              : primaryTextColor,
                         ),
                       ),
                     ),
                     if (acc != appState.accounts.last)
-                      Divider(height: 1, indent: 56, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                      const SkeuoDivider(indent: 56, height: 0),
                   ],
                 );
               }).toList(),

@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../domain/models/account_model.dart';
 import '../../domain/models/category_model.dart';
 import '../../domain/models/transaction_model.dart';
+import 'skeuomorphic.dart';
 
 class TransactionTile extends StatelessWidget {
   final TransactionModel transaction;
@@ -25,18 +26,15 @@ class TransactionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryTextColor = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final secondaryTextColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final primaryTextColor = AppColors.textPrimaryOf(context);
+    final secondaryTextColor = AppColors.textSecondaryOf(context);
 
     final isIncome = transaction.isIncome || transaction.isRefund;
     final isExpense = transaction.isExpense;
 
     final amountColor = isIncome
-        ? (isDark ? AppColors.sageLight : AppColors.sagePrimary)
-        : (isExpense
-            ? (isDark ? AppColors.clayLight : AppColors.clayPrimary)
-            : secondaryTextColor);
+        ? AppColors.incomeOf(context)
+        : (isExpense ? AppColors.expenseOf(context) : secondaryTextColor);
 
     final sign = isIncome ? '+' : (isExpense ? '-' : '');
 
@@ -44,7 +42,6 @@ class TransactionTile extends StatelessWidget {
         ? IconData(category!.iconCodePoint, fontFamily: 'MaterialIcons')
         : Icons.receipt;
 
-    final catColor = category != null ? Color(category!.colorValue) : AppColors.sagePrimary;
     final dateFormat = DateFormat('MMM d, h:mm a');
 
     return InkWell(
@@ -54,15 +51,12 @@ class TransactionTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            // Category Icon Badge
-            Container(
+            // Category Icon Badge in a debossed well
+            SkeuoInset(
               width: 44,
               height: 44,
-              decoration: BoxDecoration(
-                color: catColor.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(catIcon, color: catColor, size: 22),
+              radius: 12,
+              child: Icon(catIcon, color: AppColors.accentOf(context), size: 21),
             ),
             const SizedBox(width: 14),
 
@@ -77,10 +71,11 @@ class TransactionTile extends StatelessWidget {
                         child: Text(
                           transaction.merchant,
                           style: TextStyle(
+                            fontFamily: AppTheme.fontFamily,
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
                             color: primaryTextColor,
-                            letterSpacing: -0.2,
+                            letterSpacing: -0.1,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -88,20 +83,9 @@ class TransactionTile extends StatelessWidget {
                       ),
                       if (!transaction.isReviewed) ...[
                         const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.clayPrimary.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text(
-                            'Review',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.clayPrimary,
-                            ),
-                          ),
+                        const SkeuoBadge(
+                          label: 'Review',
+                          tone: SkeuoBadgeTone.danger,
                         ),
                       ],
                     ],
@@ -148,10 +132,11 @@ class TransactionTile extends StatelessWidget {
                   ? '••••••'
                   : '$sign${transaction.money.format()}',
               style: TextStyle(
+                fontFamily: AppTheme.fontFamily,
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
                 color: amountColor,
-                letterSpacing: -0.3,
+                letterSpacing: -0.2,
               ),
             ),
           ],

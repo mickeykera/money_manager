@@ -5,6 +5,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/android_sms_service.dart';
 import '../../services/app_state.dart';
+import '../widgets/skeuomorphic.dart';
 import 'transaction_detail_screen.dart';
 
 class SmsImportScreen extends StatefulWidget {
@@ -199,13 +200,10 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
               ),
               const SizedBox(height: 16),
               ...sampleMessages.map(
-                (sample) => Container(
+                (sample) => SkeuoPanel(
                   margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.offWhiteBg,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.borderSubtle),
-                  ),
+                  radius: 14,
+                  padding: EdgeInsets.zero,
                   child: ListTile(
                     title: Text(
                       sample['title']!,
@@ -218,17 +216,17 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
                         sample['sms']!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.textSecondary,
+                          color: AppColors.textSecondaryOf(context),
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    trailing: const Icon(
+                    trailing: Icon(
                       Icons.play_circle_outline,
-                      color: AppColors.forestGreen,
+                      color: AppColors.accentOf(context),
                     ),
                     onTap: () async {
                       Navigator.pop(ctx);
@@ -241,8 +239,8 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                           SnackBar(
                             content: Text(res.message),
                             backgroundColor: res.success
-                                ? AppColors.forestGreen
-                                : AppColors.expenseClay,
+                                ? null
+                                : AppColors.expenseOf(context),
                           ),
                         );
                       }
@@ -259,10 +257,8 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
               TextField(
                 controller: _customSmsController,
                 maxLines: 3,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   hintText: 'Paste any SMS message here...',
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
                 ),
               ),
               const SizedBox(height: 12),
@@ -303,7 +299,7 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
     final isAndroid = AndroidSmsService.isSupported;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBg : AppColors.offWhiteBg,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('SMS import'),
         actions: [
@@ -320,35 +316,33 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         children: [
           // Subtitle
-          const Text(
+          Text(
             'Your messages. Your control.',
             style: TextStyle(
+              fontFamily: AppTheme.fontFamily,
               fontSize: 14,
-              color: AppColors.textSecondary,
-              letterSpacing: -0.2,
+              fontStyle: FontStyle.italic,
+              color: AppColors.textSecondaryOf(context),
+              letterSpacing: 0.1,
             ),
           ),
           const SizedBox(height: 20),
 
-          // Privacy Card: Green Shield
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF19281E) : const Color(0xFFEFF7F1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isDark
-                    ? const Color(0xFF2E4E39)
-                    : const Color(0xFFC7E3D0),
-              ),
-            ),
+          // Privacy Card
+          SkeuoPanel(
+            radius: 17,
+            padding: const EdgeInsets.all(17),
+            color: isDark
+                ? const Color(0xFF201D15)
+                : const Color(0xFFF1EADA),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
-                  Icons.verified_user_outlined,
-                  size: 22,
-                  color: AppColors.forestGreen,
+                SkeuoIconWell(
+                  icon: Icons.verified_user_outlined,
+                  size: 40,
+                  iconSize: 20,
+                  radius: 11,
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -360,24 +354,22 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                             ? 'Private by design'
                             : 'Only what you choose to share',
                         style: TextStyle(
-                          fontSize: 14,
+                          fontFamily: AppTheme.fontFamily,
+                          fontSize: 14.5,
                           fontWeight: FontWeight.w700,
-                          color: isDark
-                              ? const Color(0xFFBCE3C8)
-                              : AppColors.forestGreen,
+                          letterSpacing: 0.1,
+                          color: AppColors.textPrimaryOf(context),
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 5),
                       Text(
                         isAndroid
                             ? 'After you grant SMS access, LedgerLeaf reads recent bank and telecom alerts on this phone. Messages are parsed on-device and never uploaded.'
                             : 'LedgerLeaf can\'t read your SMS inbox. Your personal automation forwards only matching messages.',
                         style: TextStyle(
                           fontSize: 12,
-                          height: 1.4,
-                          color: isDark
-                              ? const Color(0xFFA2C2B0)
-                              : const Color(0xFF2F543C),
+                          height: 1.45,
+                          color: AppColors.textSecondaryOf(context),
                         ),
                       ),
                     ],
@@ -392,42 +384,28 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
           if (isAndroid)
             _buildAndroidStatusCard(isDark, appState)
           else
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkCard : AppColors.cardWhite,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isDark ? AppColors.darkBorder : AppColors.borderSubtle,
-                ),
-              ),
+            SkeuoPanel(
+              padding: const EdgeInsets.all(17),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF222F26)
-                              : const Color(0xFFE8F3EC),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.auto_awesome_mosaic,
-                          size: 16,
-                          color: AppColors.forestGreen,
-                        ),
+                      SkeuoIconWell(
+                        icon: Icons.auto_awesome_mosaic,
+                        size: 32,
+                        iconSize: 16,
+                        radius: 9,
                       ),
                       const SizedBox(width: 10),
-                      const Text(
+                      Text(
                         'Apple Shortcuts',
                         style: TextStyle(
+                          fontFamily: AppTheme.fontFamily,
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
-                          letterSpacing: -0.2,
+                          letterSpacing: 0,
+                          color: AppColors.textPrimaryOf(context),
                         ),
                       ),
                       const Spacer(),
@@ -439,42 +417,14 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                               )
                               .toList();
                           final hasImportedSms = smsTransactions.isNotEmpty;
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: hasImportedSms
-                                  ? AppColors.greenAccentPill
-                                  : const Color(0xFFF3F2EC),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.circle,
-                                  size: 8,
-                                  color: hasImportedSms
-                                      ? AppColors.forestGreen
-                                      : AppColors.textMuted,
-                                ),
-                                const SizedBox(width: 5),
-                                Text(
-                                  hasImportedSms
-                                      ? 'Active Automation'
-                                      : 'Ready to Connect',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: hasImportedSms
-                                        ? AppColors.forestGreen
-                                        : AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
+                          return SkeuoBadge(
+                            label: hasImportedSms
+                                ? 'Active Automation'
+                                : 'Ready to Connect',
+                            icon: Icons.circle,
+                            tone: hasImportedSms
+                                ? SkeuoBadgeTone.accent
+                                : SkeuoBadgeTone.neutral,
                           );
                         },
                       ),
@@ -494,10 +444,8 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                           'Last automated alert: $lastTime\nProcessed on-device with zero cloud telemetry',
                           style: TextStyle(
                             fontSize: 12,
-                            height: 1.4,
-                            color: isDark
-                                ? AppColors.darkTextSecondary
-                                : AppColors.textSecondary,
+                            height: 1.45,
+                            color: AppColors.textSecondaryOf(context),
                           ),
                         );
                       }
@@ -505,10 +453,8 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                         'Awaiting personal automation configuration in Shortcuts app.\nUse "Test with sample SMS" below to simulate local parsing.',
                         style: TextStyle(
                           fontSize: 12,
-                          height: 1.4,
-                          color: isDark
-                              ? AppColors.darkTextSecondary
-                              : AppColors.textSecondary,
+                          height: 1.45,
+                          color: AppColors.textSecondaryOf(context),
                         ),
                       );
                     },
@@ -523,10 +469,12 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
             isAndroid
                 ? 'Set up automatic SMS import'
                 : 'Set up a personal automation',
-            style: const TextStyle(
-              fontSize: 17,
+            style: TextStyle(
+              fontFamily: AppTheme.fontFamily,
+              fontSize: 19,
               fontWeight: FontWeight.w700,
-              letterSpacing: -0.3,
+              letterSpacing: -0.1,
+              color: AppColors.textPrimaryOf(context),
             ),
           ),
           const SizedBox(height: 14),
@@ -551,41 +499,25 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
               isDark: isDark,
             ),
             const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
+            SkeuoButton(
+              label: _isImporting
+                  ? 'Importing SMS...'
+                  : _androidPermissionGranted
+                  ? 'Import SMS now'
+                  : 'Allow SMS access & import',
+              icon: Icons.sms_outlined,
               height: 54,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.forestGreen,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  elevation: 0,
-                ),
-                icon: _isImporting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.sms_outlined, size: 20),
-                label: Text(
-                  _isImporting
-                      ? 'Importing SMS...'
-                      : _androidPermissionGranted
-                      ? 'Import SMS now'
-                      : 'Allow SMS access & import',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                onPressed: _isImporting ? null : _importAndroidSms,
-              ),
+              onPressed: _isImporting ? null : _importAndroidSms,
+              trailing: _isImporting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFFE0C892),
+                      ),
+                    )
+                  : null,
             ),
             if (_lastAndroidImport != null) ...[
               const SizedBox(height: 10),
@@ -593,10 +525,10 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                 _lastAndroidImport!.message,
                 style: TextStyle(
                   fontSize: 12,
-                  height: 1.4,
+                  height: 1.45,
                   color: _lastAndroidImport!.isSuccess
-                      ? AppColors.forestGreen
-                      : AppColors.expenseClay,
+                      ? AppColors.incomeOf(context)
+                      : AppColors.expenseOf(context),
                 ),
               ),
             ],
@@ -631,54 +563,39 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
                 onPressed: _openAppleShortcuts,
-                icon: const Text(
+                icon: Text(
                   'Open Shortcuts',
                   style: TextStyle(
-                    color: AppColors.forestGreen,
+                    color: AppColors.accentOf(context),
                     fontWeight: FontWeight.w600,
-                    fontSize: 14,
+                    fontSize: 13.5,
                   ),
                 ),
-                label: const Icon(
+                label: Icon(
                   Icons.north_east,
                   size: 14,
-                  color: AppColors.forestGreen,
+                  color: AppColors.accentOf(context),
                 ),
               ),
             ),
           ],
           const SizedBox(height: 20),
 
-          // Big Dark Forest Green Action Button
-          SizedBox(
-            width: double.infinity,
+          // Test ingestion action
+          SkeuoButton(
+            label: 'Test with sample SMS',
+            icon: Icons.play_arrow,
             height: 54,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.forestGreen,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 0,
-              ),
-              icon: const Icon(Icons.play_arrow, size: 20),
-              label: const Text(
-                'Test with sample SMS',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-              ),
-              onPressed: _showTestSmsDialog,
-            ),
+            secondary: true,
+            onPressed: _showTestSmsDialog,
           ),
           const SizedBox(height: 8),
           Center(
             child: Text(
               'Preview only. Won\'t duplicate your transactions.',
               style: TextStyle(
-                fontSize: 12,
-                color: isDark
-                    ? AppColors.darkTextSecondary
-                    : AppColors.textMuted,
+                fontSize: 11.5,
+                color: AppColors.textMutedOf(context),
               ),
             ),
           ),
@@ -689,31 +606,19 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Review Queue',
                   style: TextStyle(
-                    fontSize: 17,
+                    fontFamily: AppTheme.fontFamily,
+                    fontSize: 19,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: -0.3,
+                    letterSpacing: -0.1,
+                    color: AppColors.textPrimaryOf(context),
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.clayLight,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    '$pendingCount needs review',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.clayPrimary,
-                    ),
-                  ),
+                SkeuoBadge(
+                  label: '$pendingCount needs review',
+                  tone: SkeuoBadgeTone.danger,
                 ),
               ],
             ),
@@ -727,21 +632,18 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                 (a) => a.id == tx.accountId,
                 orElse: () => appState.accounts.first,
               );
-              return Container(
+              return SkeuoPanel(
                 margin: const EdgeInsets.only(bottom: 10),
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkCard : AppColors.cardWhite,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: AppColors.clayPrimary.withOpacity(0.3),
-                  ),
-                ),
+                radius: 14,
+                padding: EdgeInsets.zero,
                 child: ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: AppColors.clayLight,
+                  leading: const SkeuoInset(
+                    width: 38,
+                    height: 38,
+                    radius: 19,
                     child: Icon(
                       Icons.priority_high,
-                      color: AppColors.clayPrimary,
+                      color: AppColors.expenseClay,
                       size: 18,
                     ),
                   ),
@@ -780,79 +682,37 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
     final hasImportedSms = smsTransactions.isNotEmpty;
     final connected = _androidPermissionGranted;
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCard : AppColors.cardWhite,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.borderSubtle,
-        ),
-      ),
+    return SkeuoPanel(
+      padding: const EdgeInsets.all(17),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF222F26)
-                      : const Color(0xFFE8F3EC),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.sms_outlined,
-                  size: 16,
-                  color: AppColors.forestGreen,
-                ),
+              SkeuoIconWell(
+                icon: Icons.sms_outlined,
+                size: 32,
+                iconSize: 16,
+                radius: 9,
               ),
               const SizedBox(width: 10),
-              const Text(
+              Text(
                 'Android SMS import',
                 style: TextStyle(
+                  fontFamily: AppTheme.fontFamily,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  letterSpacing: -0.2,
+                  letterSpacing: 0,
+                  color: AppColors.textPrimaryOf(context),
                 ),
               ),
               const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: connected
-                      ? AppColors.greenAccentPill
-                      : const Color(0xFFF3F2EC),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.circle,
-                      size: 8,
-                      color: connected
-                          ? AppColors.forestGreen
-                          : AppColors.textMuted,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      connected ? 'Permission granted' : 'Permission needed',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: connected
-                            ? AppColors.forestGreen
-                            : AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
+              SkeuoBadge(
+                label: connected ? 'Permission granted' : 'Permission needed',
+                icon: Icons.circle,
+                tone: connected
+                    ? SkeuoBadgeTone.accent
+                    : SkeuoBadgeTone.neutral,
               ),
             ],
           ),
@@ -865,10 +725,8 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                 : 'No SMS alerts imported yet. Tap "Import SMS now" below to scan the last 12 months.',
             style: TextStyle(
               fontSize: 12,
-              height: 1.4,
-              color: isDark
-                  ? AppColors.darkTextSecondary
-                  : AppColors.textSecondary,
+              height: 1.45,
+              color: AppColors.textSecondaryOf(context),
             ),
           ),
         ],
@@ -887,22 +745,17 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 26,
-            height: 26,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF222B25) : const Color(0xFFE9E8E2),
-              shape: BoxShape.circle,
-            ),
+          SkeuoInset(
+            width: 27,
+            height: 27,
+            radius: 14,
             child: Text(
               number,
               style: TextStyle(
+                fontFamily: AppTheme.fontFamily,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: isDark
-                    ? AppColors.darkTextPrimary
-                    : AppColors.textPrimary,
+                color: AppColors.accentOf(context),
               ),
             ),
           ),
@@ -914,12 +767,11 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                 Text(
                   title,
                   style: TextStyle(
+                    fontFamily: AppTheme.fontFamily,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: isDark
-                        ? AppColors.darkTextPrimary
-                        : AppColors.textPrimary,
-                    letterSpacing: -0.2,
+                    color: AppColors.textPrimaryOf(context),
+                    letterSpacing: 0,
                   ),
                 ),
                 const SizedBox(height: 3),
@@ -927,10 +779,8 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                   body,
                   style: TextStyle(
                     fontSize: 12,
-                    height: 1.4,
-                    color: isDark
-                        ? AppColors.darkTextSecondary
-                        : AppColors.textSecondary,
+                    height: 1.45,
+                    color: AppColors.textSecondaryOf(context),
                   ),
                 ),
               ],

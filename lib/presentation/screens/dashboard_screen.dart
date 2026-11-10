@@ -8,6 +8,7 @@ import '../../domain/models/account_model.dart';
 import '../../domain/models/category_model.dart';
 import '../../domain/models/transaction_model.dart';
 import '../../services/app_state.dart';
+import '../widgets/skeuomorphic.dart';
 import 'accounts_screen.dart';
 import 'add_transaction_screen.dart';
 import 'bundles_screen.dart';
@@ -39,7 +40,7 @@ class DashboardScreen extends StatelessWidget {
     final telecom = appState.telecomSummary;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBg : AppColors.offWhiteBg,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -51,21 +52,46 @@ class DashboardScreen extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      width: 28,
-                      height: 28,
-                      decoration: const BoxDecoration(
-                        color: AppColors.forestGreen,
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF303437), Color(0xFF111314)],
+                        ),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.16),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.35),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                          BoxShadow(
+                            color: Colors.white.withValues(alpha: 0.06),
+                            blurRadius: 1,
+                            offset: const Offset(0, -1),
+                          ),
+                        ],
                       ),
-                      child: const Icon(Icons.eco_rounded, color: Colors.white, size: 16),
+                      child: Icon(
+                        Icons.eco_rounded,
+                        color: AppColors.accentOf(context),
+                        size: 17,
+                      ),
                     ),
-                    const SizedBox(width: 8),
-                    const Text(
+                    const SizedBox(width: 10),
+                    Text(
                       'LedgerLeaf',
                       style: TextStyle(
-                        fontSize: 20,
+                        fontFamily: AppTheme.fontFamily,
+                        fontSize: 22,
                         fontWeight: FontWeight.w700,
-                        letterSpacing: -0.5,
+                        letterSpacing: -0.2,
+                        color: AppColors.textPrimaryOf(context),
                       ),
                     ),
                   ],
@@ -77,20 +103,18 @@ class DashboardScreen extends StatelessWidget {
                     );
                   },
                   borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF242A26) : const Color(0xFFE8E7DF),
-                      shape: BoxShape.circle,
-                    ),
+                  child: SkeuoInset(
+                    width: 38,
+                    height: 38,
+                    radius: 19,
                     child: Text(
                       'AL',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontFamily: AppTheme.fontFamily,
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w700,
-                        color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                        letterSpacing: 0.5,
+                        color: AppColors.textPrimaryOf(context),
                       ),
                     ),
                   ),
@@ -99,13 +123,12 @@ class DashboardScreen extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-            // Hero Card: Dark Forest Green (Screen 1 in ui.jpg)
-            Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: AppColors.forestGreenHero,
-                borderRadius: BorderRadius.circular(24),
-              ),
+            // Hero balance plaque
+            SkeuoPanel(
+              hero: true,
+              ornament: true,
+              radius: 24,
+              padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -113,11 +136,12 @@ class DashboardScreen extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'Your total balance',
+                        'YOUR TOTAL BALANCE',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 10.5,
+                          letterSpacing: 1.5,
                           color: AppColors.forestGreenSubtext,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       IconButton(
@@ -133,23 +157,35 @@ class DashboardScreen extends StatelessWidget {
                   Text(
                     appState.isPrivacyMode ? '••••••••' : totalBalanceMoney.format(includeCurrency: false),
                     style: const TextStyle(
-                      fontSize: 34,
+                      fontFamily: AppTheme.fontFamily,
+                      fontSize: 38,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      letterSpacing: -1.0,
+                      color: Color(0xFFF6F1E7),
+                      letterSpacing: -1.2,
+                      shadows: [
+                        Shadow(
+                          color: Color(0x66000000),
+                          blurRadius: 2,
+                          offset: Offset(0, 1),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     '${AppConstants.defaultCurrency} · Across ${appState.accounts.length} accounts',
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w500,
+                      letterSpacing: 0.2,
                       color: AppColors.forestGreenSubtext,
                     ),
                   ),
                   const SizedBox(height: 20),
-                  const Divider(color: Color(0xFF284D3B), height: 1),
+                  Container(
+                    height: 1,
+                    color: Colors.white.withValues(alpha: 0.10),
+                  ),
                   const SizedBox(height: 16),
 
                   // Bottom columns: In this month & Out this month
@@ -162,19 +198,25 @@ class DashboardScreen extends StatelessWidget {
                             const Row(
                               children: [
                                 Icon(Icons.north_east, size: 13, color: AppColors.forestGreenSubtext),
-                                SizedBox(width: 4),
+                                SizedBox(width: 5),
                                 Text(
-                                  'In this month',
-                                  style: TextStyle(color: AppColors.forestGreenSubtext, fontSize: 12),
+                                  'IN THIS MONTH',
+                                  style: TextStyle(
+                                    color: AppColors.forestGreenSubtext,
+                                    fontSize: 9.5,
+                                    letterSpacing: 1.1,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 5),
                             Text(
                               appState.isPrivacyMode ? '••••' : incomeMoney.format(includeCurrency: false),
                               style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
+                                fontFamily: AppTheme.fontFamily,
+                                color: Color(0xFFF2EDE3),
+                                fontSize: 17,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: -0.3,
                               ),
@@ -182,7 +224,11 @@ class DashboardScreen extends StatelessWidget {
                           ],
                         ),
                       ),
-                      Container(height: 34, width: 1, color: const Color(0xFF284D3B)),
+                      Container(
+                        height: 34,
+                        width: 1,
+                        color: Colors.white.withValues(alpha: 0.10),
+                      ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
@@ -191,19 +237,25 @@ class DashboardScreen extends StatelessWidget {
                             const Row(
                               children: [
                                 Icon(Icons.south_east, size: 13, color: AppColors.forestGreenSubtext),
-                                SizedBox(width: 4),
+                                SizedBox(width: 5),
                                 Text(
-                                  'Out this month',
-                                  style: TextStyle(color: AppColors.forestGreenSubtext, fontSize: 12),
+                                  'OUT THIS MONTH',
+                                  style: TextStyle(
+                                    color: AppColors.forestGreenSubtext,
+                                    fontSize: 9.5,
+                                    letterSpacing: 1.1,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 5),
                             Text(
                               appState.isPrivacyMode ? '••••' : expenseMoney.format(includeCurrency: false),
                               style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
+                                fontFamily: AppTheme.fontFamily,
+                                color: Color(0xFFF2EDE3),
+                                fontSize: 17,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: -0.3,
                               ),
@@ -222,12 +274,14 @@ class DashboardScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Linked accounts',
                   style: TextStyle(
-                    fontSize: 17,
+                    fontFamily: AppTheme.fontFamily,
+                    fontSize: 19,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: -0.3,
+                    letterSpacing: -0.1,
+                    color: AppColors.textPrimaryOf(context),
                   ),
                 ),
                 InkWell(
@@ -240,12 +294,13 @@ class DashboardScreen extends StatelessWidget {
                       );
                     }
                   },
-                  child: const Text(
+                  child: Text(
                     'View all',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 12.5,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.forestGreen,
+                      letterSpacing: 0.3,
+                      color: AppColors.accentOf(context),
                     ),
                   ),
                 ),
@@ -255,7 +310,7 @@ class DashboardScreen extends StatelessWidget {
 
             // Horizontal Linked Accounts Cards
             SizedBox(
-              height: 104,
+              height: 128,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: appState.accounts.length,
@@ -276,12 +331,14 @@ class DashboardScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Recent activity',
                   style: TextStyle(
-                    fontSize: 17,
+                    fontFamily: AppTheme.fontFamily,
+                    fontSize: 19,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: -0.3,
+                    letterSpacing: -0.1,
+                    color: AppColors.textPrimaryOf(context),
                   ),
                 ),
                 InkWell(
@@ -294,12 +351,13 @@ class DashboardScreen extends StatelessWidget {
                       );
                     }
                   },
-                  child: const Text(
+                  child: Text(
                     'See all',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 12.5,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.forestGreen,
+                      letterSpacing: 0.3,
+                      color: AppColors.accentOf(context),
                     ),
                   ),
                 ),
@@ -309,23 +367,18 @@ class DashboardScreen extends StatelessWidget {
 
             // Recent Transactions List
             if (appState.transactions.isEmpty)
-              Container(
+              SkeuoPanel(
                 padding: const EdgeInsets.symmetric(vertical: 32),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkCard : AppColors.cardWhite,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.borderSubtle),
+                child: Center(
+                  child: Text(
+                    'No recent activity recorded.',
+                    style: TextStyle(color: AppColors.textSecondaryOf(context)),
+                  ),
                 ),
-                child: const Text('No recent activity recorded.', style: TextStyle(color: AppColors.textSecondary)),
               )
             else
-              Container(
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkCard : AppColors.cardWhite,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.borderSubtle),
-                ),
+              SkeuoPanel(
+                padding: EdgeInsets.zero,
                 child: Column(
                   children: appState.transactions.take(4).map((tx) {
                     final cat = appState.categories.firstWhere(
@@ -342,11 +395,7 @@ class DashboardScreen extends StatelessWidget {
                       children: [
                         _buildRecentActivityTile(context, tx, cat, acc, isDark),
                         if (!isLast)
-                          Divider(
-                            height: 1,
-                            indent: 68,
-                            color: isDark ? AppColors.darkBorder : AppColors.borderSubtle,
-                          ),
+                          const SkeuoDivider(indent: 68, height: 0),
                       ],
                     );
                   }).toList(),
@@ -359,8 +408,9 @@ class DashboardScreen extends StatelessWidget {
               child: Text(
                 '• Via your Shortcuts • Updated at ${DateFormat("h:mm a").format(DateTime.now())}',
                 style: TextStyle(
-                  fontSize: 12,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                  fontSize: 11.5,
+                  letterSpacing: 0.2,
+                  color: AppColors.textSecondaryOf(context),
                 ),
               ),
             ),
@@ -369,8 +419,6 @@ class DashboardScreen extends StatelessWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.forestGreen,
-        foregroundColor: Colors.white,
         child: const Icon(Icons.add),
         onPressed: () {
           Navigator.of(context).push(
@@ -383,32 +431,36 @@ class DashboardScreen extends StatelessWidget {
 
   Widget _buildLinkedAccountItem(BuildContext context, AccountModel acc, bool isDark) {
     final balanceMoney = acc.balance;
-    return Container(
+    return SizedBox(
       width: 154,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCard : AppColors.cardWhite,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.borderSubtle),
-      ),
-      child: Column(
+      child: SkeuoPanel(
+        radius: 16,
+        padding: const EdgeInsets.all(13),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             children: [
-              Icon(
-                acc.name.toLowerCase().contains('telebirr') || acc.name.toLowerCase().contains('mpesa')
+              SkeuoIconWell(
+                icon: acc.name.toLowerCase().contains('telebirr') || acc.name.toLowerCase().contains('mpesa')
                     ? Icons.phone_android
                     : Icons.account_balance_outlined,
-                size: 16,
-                color: AppColors.forestGreen,
+                size: 30,
+                iconSize: 15,
+                radius: 9,
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   acc.name,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  style: TextStyle(
+                    fontFamily: AppTheme.fontFamily,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                    color: AppColors.textPrimaryOf(context),
+                  ),
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -419,23 +471,30 @@ class DashboardScreen extends StatelessWidget {
             children: [
               Text(
                 appState.isPrivacyMode ? '••••' : balanceMoney.format(includeCurrency: false),
-                style: const TextStyle(
-                  fontSize: 17,
+                style: TextStyle(
+                  fontFamily: AppTheme.fontFamily,
+                  fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  letterSpacing: -0.5,
+                  letterSpacing: -0.4,
+                  color: AppColors.textPrimaryOf(context),
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 '${acc.type.toUpperCase()} · ${acc.accountNumberMasked ?? "••••"}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 11,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.textMuted,
+                  fontSize: 9.5,
+                  letterSpacing: 0.6,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textMutedOf(context),
                 ),
               ),
             ],
           ),
         ],
+        ),
       ),
     );
   }
@@ -453,7 +512,8 @@ class DashboardScreen extends StatelessWidget {
             ? '${totalGb.toStringAsFixed(1)} GB remaining$expiryLabel'
             : 'No active package reported';
 
-    return InkWell(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () {
         if (onNavigateToBundles != null) {
           onNavigateToBundles!();
@@ -463,43 +523,47 @@ class DashboardScreen extends StatelessWidget {
           );
         }
       },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkCard : AppColors.cardWhite,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.borderSubtle),
-        ),
+      child: SkeuoPanel(
+        radius: 16,
+        padding: const EdgeInsets.all(15),
         child: Row(
           children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: AppColors.greenAccentPill,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.cell_tower, size: 20, color: AppColors.forestGreen),
+            SkeuoIconWell(
+              icon: Icons.cell_tower,
+              size: 40,
+              iconSize: 19,
+              radius: 11,
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Telecom Bundles (Ethio & Safaricom)',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  Text(
+                    'Telecom Bundles',
+                    style: TextStyle(
+                      fontFamily: AppTheme.fontFamily,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimaryOf(context),
+                    ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Text(
                     summaryText,
-                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondaryOf(context),
+                    ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, size: 18, color: AppColors.textMuted),
+            Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: AppColors.textMutedOf(context),
+            ),
           ],
         ),
       ),
@@ -536,18 +600,15 @@ class DashboardScreen extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            // Category Icon in subtle container
-            Container(
+            // Category icon in a debossed well
+            SkeuoInset(
               width: 40,
               height: 40,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF232A25) : const Color(0xFFF3F2EC),
-                borderRadius: BorderRadius.circular(10),
-              ),
+              radius: 11,
               child: Icon(
                 IconData(cat.iconCodePoint, fontFamily: 'MaterialIcons'),
-                size: 20,
-                color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                size: 19,
+                color: AppColors.accentOf(context),
               ),
             ),
             const SizedBox(width: 14),
@@ -559,10 +620,12 @@ class DashboardScreen extends StatelessWidget {
                 children: [
                   Text(
                     tx.merchant,
-                    style: const TextStyle(
-                      fontSize: 14,
+                    style: TextStyle(
+                      fontFamily: AppTheme.fontFamily,
+                      fontSize: 14.5,
                       fontWeight: FontWeight.w600,
-                      letterSpacing: -0.2,
+                      letterSpacing: -0.1,
+                      color: AppColors.textPrimaryOf(context),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -571,8 +634,8 @@ class DashboardScreen extends StatelessWidget {
                   Text(
                     '${cat.name} · ${acc.name}',
                     style: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                      fontSize: 11.5,
+                      color: AppColors.textSecondaryOf(context),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -588,20 +651,21 @@ class DashboardScreen extends StatelessWidget {
                 Text(
                   appState.isPrivacyMode ? '••••' : amountStr,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontFamily: AppTheme.fontFamily,
+                    fontSize: 14.5,
                     fontWeight: FontWeight.w700,
                     color: isIncome
-                        ? AppColors.incomeGreen
-                        : (isDark ? AppColors.darkTextPrimary : AppColors.textPrimary),
-                    letterSpacing: -0.3,
+                        ? AppColors.incomeOf(context)
+                        : AppColors.textPrimaryOf(context),
+                    letterSpacing: -0.2,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   timeStr,
                   style: TextStyle(
-                    fontSize: 11,
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.textMuted,
+                    fontSize: 10.5,
+                    color: AppColors.textMutedOf(context),
                   ),
                 ),
               ],

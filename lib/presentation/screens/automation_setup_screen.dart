@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../widgets/skeuomorphic.dart';
 import '../../services/app_state.dart';
 import '../../services/ingestion_service.dart';
 
@@ -72,11 +73,11 @@ class _AutomationSetupScreenState extends State<AutomationSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryTextColor = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final secondaryTextColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final primaryTextColor = AppColors.textPrimaryOf(context);
+    final secondaryTextColor = AppColors.textSecondaryOf(context);
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Automatic Tracking Setup'),
       ),
@@ -126,21 +127,27 @@ class _AutomationSetupScreenState extends State<AutomationSetupScreen> {
             content: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: (isDark ? AppColors.darkCard : AppColors.lightCard),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
-                  ),
+                SkeuoPanel(
+                  inset: true,
+                  radius: 12,
+                  padding: const EdgeInsets.all(13),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.info_outline, color: AppColors.sagePrimary, size: 20),
+                      Icon(
+                        Icons.info_outline,
+                        color: AppColors.accentOf(context),
+                        size: 20,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           'iOS does not permit any app to passively read your SMS messages in the background. Instead, Apple Shortcuts Personal Automation gives you 100% control.',
-                          style: TextStyle(fontSize: 12, height: 1.4, color: secondaryTextColor),
+                          style: TextStyle(
+                            fontSize: 12,
+                            height: 1.45,
+                            color: secondaryTextColor,
+                          ),
                         ),
                       ),
                     ],
@@ -244,36 +251,20 @@ class _AutomationSetupScreenState extends State<AutomationSetupScreen> {
                 const SizedBox(height: 12),
 
                 // Ingest Test Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 44,
-                  child: ElevatedButton.icon(
-                    icon: _isTesting
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Icon(Icons.play_arrow, size: 18),
-                    label: const Text('Test Ingestion Pipeline'),
-                    onPressed: _isTesting ? null : _runSimulation,
-                  ),
+                SkeuoButton(
+                  label: 'Test Ingestion Pipeline',
+                  icon: Icons.play_arrow,
+                  height: 48,
+                  onPressed: _isTesting ? null : _runSimulation,
                 ),
 
                 // Test Output Card
                 if (_testResult != null) ...[
                   const SizedBox(height: 14),
-                  Container(
+                  SkeuoPanel(
+                    inset: true,
+                    radius: 12,
                     padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: _testResult!.success
-                          ? (isDark ? AppColors.sagePrimary.withOpacity(0.2) : AppColors.sageContainer)
-                          : (isDark ? AppColors.clayPrimary.withOpacity(0.2) : AppColors.clayContainer),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: _testResult!.success ? AppColors.sagePrimary : AppColors.clayPrimary,
-                      ),
-                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -282,15 +273,20 @@ class _AutomationSetupScreenState extends State<AutomationSetupScreen> {
                             Icon(
                               _testResult!.success ? Icons.check_circle : Icons.error,
                               size: 18,
-                              color: _testResult!.success ? AppColors.sagePrimary : AppColors.clayPrimary,
+                              color: _testResult!.success
+                                  ? AppColors.incomeOf(context)
+                                  : AppColors.expenseOf(context),
                             ),
                             const SizedBox(width: 8),
                             Text(
                               _testResult!.success ? 'Ingestion Successful' : 'Ingestion Dropped',
                               style: TextStyle(
-                                fontWeight: FontWeight.bold,
+                                fontFamily: AppTheme.fontFamily,
+                                fontWeight: FontWeight.w700,
                                 fontSize: 13,
-                                color: _testResult!.success ? AppColors.sagePrimary : AppColors.clayPrimary,
+                                color: _testResult!.success
+                                    ? AppColors.incomeOf(context)
+                                    : AppColors.expenseOf(context),
                               ),
                             ),
                           ],

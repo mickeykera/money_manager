@@ -7,6 +7,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
 import '../../domain/models/transaction_model.dart';
 import '../../services/app_state.dart';
+import '../widgets/skeuomorphic.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final AppState appState;
@@ -139,13 +140,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryTextColor = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final secondaryTextColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final primaryTextColor = AppColors.textPrimaryOf(context);
+    final secondaryTextColor = AppColors.textSecondaryOf(context);
 
     final isEditing = widget.existingTransaction != null;
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: Text(isEditing ? 'Edit Transaction' : 'Add Transaction'),
       ),
@@ -169,45 +170,71 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Amount Input Card
-            Container(
+            // Amount Input Card — a debossed well in a raised plate
+            SkeuoPanel(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkCard : AppColors.lightCard,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
-              ),
+              radius: 18,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Amount (ETB)',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: secondaryTextColor),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _amountController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
-                    decoration: const InputDecoration(
-                      prefixText: 'ETB ',
-                      prefixStyle: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
-                      hintText: '0.00',
-                      border: InputBorder.none,
-                      filled: false,
-                      contentPadding: EdgeInsets.zero,
+                    'AMOUNT (ETB)',
+                    style: TextStyle(
+                      fontFamily: AppTheme.fontFamily,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.2,
+                      color: secondaryTextColor,
                     ),
-                    validator: (val) {
-                      if (val == null || val.trim().isEmpty) return 'Enter an amount';
-                      final parsed = Money.parseString(val);
-                      if (parsed.santims <= 0) return 'Amount must be greater than zero';
-                      return null;
-                    },
+                  ),
+                  const SizedBox(height: 10),
+                  SkeuoPanel(
+                    inset: true,
+                    radius: 12,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    child: TextFormField(
+                      controller: _amountController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      style: TextStyle(
+                        fontFamily: AppTheme.fontFamily,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w700,
+                        color: primaryTextColor,
+                        letterSpacing: -0.5,
+                      ),
+                      decoration: InputDecoration(
+                        prefixText: 'ETB ',
+                        prefixStyle: TextStyle(
+                          fontFamily: AppTheme.fontFamily,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w600,
+                          color: secondaryTextColor,
+                        ),
+                        hintText: '0.00',
+                        border: InputBorder.none,
+                        filled: false,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) {
+                          return 'Enter an amount';
+                        }
+                        final parsed = Money.parseString(val);
+                        if (parsed.santims <= 0) {
+                          return 'Amount must be greater than zero';
+                        }
+                        return null;
+                      },
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
             // Merchant / Counterparty
             TextFormField(
@@ -313,12 +340,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             const SizedBox(height: 32),
 
             // Save Button
-            SizedBox(
-              height: 52,
-              child: ElevatedButton(
-                onPressed: _save,
-                child: Text(isEditing ? 'Save Changes' : 'Record Transaction'),
-              ),
+            SkeuoButton(
+              label: isEditing ? 'Save Changes' : 'Record Transaction',
+              icon: isEditing ? Icons.check : Icons.add,
+              height: 54,
+              onPressed: _save,
             ),
           ],
         ),

@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../services/android_sms_service.dart';
 import '../../services/app_state.dart';
+import '../widgets/skeuomorphic.dart';
 import 'automation_setup_screen.dart';
 import 'sms_import_screen.dart';
 
@@ -93,6 +94,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         : AppColors.lightTextSecondary;
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Column(
           children: [
@@ -105,12 +107,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   Text(
                     'LedgerLeaf',
                     style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.5,
-                      color: isDark
-                          ? AppColors.sageLight
-                          : AppColors.sagePrimary,
+                      fontFamily: AppTheme.fontFamily,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.1,
+                      color: AppColors.textPrimaryOf(context),
                     ),
                   ),
                   if (_currentPage < _pages.length - 1)
@@ -138,55 +139,64 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Icon Illustration
+                        // Raised medallion
                         Container(
-                          width: 100,
-                          height: 100,
+                          width: 116,
+                          height: 116,
                           decoration: BoxDecoration(
-                            color:
-                                (isDark
-                                        ? AppColors.sageLight
-                                        : AppColors.sagePrimary)
-                                    .withOpacity(0.12),
                             shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: isDark
+                                  ? [
+                                      const Color(0xFF262A2D),
+                                      const Color(0xFF0E1011),
+                                    ]
+                                  : [
+                                      const Color(0xFFF9F5ED),
+                                      const Color(0xFFD9D3C6),
+                                    ],
+                            ),
+                            border: Border.all(
+                              color: AppColors.borderOf(context),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(
+                                  alpha: isDark ? 0.50 : 0.16,
+                                ),
+                                blurRadius: 22,
+                                offset: const Offset(0, 10),
+                              ),
+                              BoxShadow(
+                                color: Colors.white.withValues(
+                                  alpha: isDark ? 0.05 : 0.65,
+                                ),
+                                blurRadius: 1,
+                                offset: const Offset(0, -1),
+                              ),
+                            ],
                           ),
-                          child: Icon(
-                            page.icon,
-                            size: 48,
-                            color: isDark
-                                ? AppColors.sageLight
-                                : AppColors.sagePrimary,
+                          child: Center(
+                            child: SkeuoInset(
+                              width: 86,
+                              height: 86,
+                              radius: 43,
+                              child: Icon(
+                                page.icon,
+                                size: 40,
+                                color: AppColors.accentOf(context),
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 28),
 
                         // Badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: (isDark
-                                ? AppColors.darkCard
-                                : AppColors.lightCard),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: isDark
-                                  ? AppColors.darkBorder
-                                  : AppColors.lightBorder,
-                            ),
-                          ),
-                          child: Text(
-                            page.badgeText,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: isDark
-                                  ? AppColors.sageLight
-                                  : AppColors.sagePrimary,
-                            ),
-                          ),
+                        SkeuoBadge(
+                          label: page.badgeText,
+                          tone: SkeuoBadgeTone.accent,
                         ),
                         const SizedBox(height: 20),
 
@@ -195,9 +205,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           page.title,
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 26,
+                            fontFamily: AppTheme.fontFamily,
+                            fontSize: 28,
                             fontWeight: FontWeight.w700,
-                            letterSpacing: -0.6,
+                            letterSpacing: -0.5,
                             color: primaryTextColor,
                           ),
                         ),
@@ -208,8 +219,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           page.subtitle,
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 16,
+                            fontFamily: AppTheme.fontFamily,
+                            fontSize: 15.5,
                             fontWeight: FontWeight.w500,
+                            fontStyle: FontStyle.italic,
                             color: secondaryTextColor,
                           ),
                         ),
@@ -220,8 +233,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           page.description,
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 14,
-                            height: 1.5,
+                            fontSize: 13.5,
+                            height: 1.55,
                             color: secondaryTextColor,
                           ),
                         ),
@@ -240,15 +253,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 return AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
                   margin: const EdgeInsets.symmetric(horizontal: 4),
-                  width: isActive ? 24 : 8,
+                  width: isActive ? 26 : 8,
                   height: 8,
                   decoration: BoxDecoration(
                     color: isActive
-                        ? (isDark ? AppColors.sageLight : AppColors.sagePrimary)
-                        : (isDark
-                              ? AppColors.darkBorder
-                              : AppColors.lightBorder),
+                        ? AppColors.accentOf(context)
+                        : AppColors.borderOf(context),
                     borderRadius: BorderRadius.circular(4),
+                    boxShadow: isActive
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withValues(
+                                alpha: isDark ? 0.4 : 0.12,
+                              ),
+                              blurRadius: 3,
+                              offset: const Offset(0, 1),
+                            ),
+                          ]
+                        : null,
                   ),
                 );
               }),
@@ -261,56 +283,32 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: _currentPage == _pages.length - 1
                   ? Column(
                       children: [
-                        SizedBox(
-                          width: double.infinity,
-                          height: 52,
-                          child: ElevatedButton(
-                            onPressed: () =>
-                                _completeOnboarding(openSetup: true),
-                            child: Text(
-                              AndroidSmsService.isSupported
-                                  ? 'Import SMS from this phone'
-                                  : 'Configure Automation Setup',
-                            ),
-                          ),
+                        SkeuoButton(
+                          label: AndroidSmsService.isSupported
+                              ? 'Import SMS from this phone'
+                              : 'Configure Automation Setup',
+                          icon: Icons.sms_outlined,
+                          onPressed: () =>
+                              _completeOnboarding(openSetup: true),
                         ),
                         const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 52,
-                          child: OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(
-                                color: isDark
-                                    ? AppColors.darkBorder
-                                    : AppColors.lightBorder,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            onPressed: () =>
-                                _completeOnboarding(openSetup: false),
-                            child: Text(
-                              'Go to Dashboard',
-                              style: TextStyle(color: primaryTextColor),
-                            ),
-                          ),
+                        SkeuoButton(
+                          label: 'Go to Dashboard',
+                          secondary: true,
+                          onPressed: () =>
+                              _completeOnboarding(openSetup: false),
                         ),
                       ],
                     )
-                  : SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          _pageController.nextPage(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          );
-                        },
-                        child: const Text('Continue'),
-                      ),
+                  : SkeuoButton(
+                      label: 'Continue',
+                      icon: Icons.arrow_forward,
+                      onPressed: () {
+                        _pageController.nextPage(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
+                      },
                     ),
             ),
           ],

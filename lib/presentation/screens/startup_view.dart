@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../widgets/skeuomorphic.dart';
 
 /// Sanitizes an initialization error into a safe, user-presentable message
 /// that never leaks PII, account numbers, or raw transaction text.
@@ -39,43 +40,64 @@ class StartupLoadingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? AppColors.darkBg : AppColors.offWhiteBg;
-    final textColor = isDark ? AppColors.darkTextPrimary : AppColors.forestGreen;
-    final subtitleColor = isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+    final textColor = AppColors.textPrimaryOf(context);
+    final subtitleColor = AppColors.textSecondaryOf(context);
 
     return Scaffold(
-      backgroundColor: bgColor,
+      backgroundColor: Colors.transparent,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 72,
-              height: 72,
+              width: 92,
+              height: 92,
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF232A25) : AppColors.greenAccentPill,
-                borderRadius: BorderRadius.circular(20),
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: isDark
+                      ? [const Color(0xFF262A2D), const Color(0xFF0E1011)]
+                      : [const Color(0xFFF9F5ED), const Color(0xFFD9D3C6)],
+                ),
+                border: Border.all(color: AppColors.borderOf(context)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
+                    color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.16),
+                    blurRadius: 22,
+                    offset: const Offset(0, 10),
+                  ),
+                  BoxShadow(
+                    color: Colors.white.withValues(
+                      alpha: isDark ? 0.05 : 0.65,
+                    ),
+                    blurRadius: 1,
+                    offset: const Offset(0, -1),
                   ),
                 ],
               ),
-              child: const Icon(
-                Icons.account_balance_wallet_rounded,
-                size: 36,
-                color: AppColors.forestGreen,
+              child: Center(
+                child: SkeuoInset(
+                  width: 66,
+                  height: 66,
+                  radius: 33,
+                  child: Icon(
+                    Icons.account_balance_wallet_rounded,
+                    size: 31,
+                    color: AppColors.accentOf(context),
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 26),
             Text(
               'LedgerLeaf',
               style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                letterSpacing: -0.5,
+                fontFamily: AppTheme.fontFamily,
+                fontSize: 27,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
                 color: textColor,
               ),
             ),
@@ -83,17 +105,19 @@ class StartupLoadingView extends StatelessWidget {
             Text(
               'Opening your private offline vault...',
               style: TextStyle(
-                fontSize: 14,
+                fontFamily: AppTheme.fontFamily,
+                fontSize: 13.5,
+                fontStyle: FontStyle.italic,
                 color: subtitleColor,
               ),
             ),
             const SizedBox(height: 32),
-            const SizedBox(
+            SizedBox(
               width: 24,
               height: 24,
               child: CircularProgressIndicator(
                 strokeWidth: 2.5,
-                color: AppColors.forestGreen,
+                color: AppColors.accentOf(context),
               ),
             ),
           ],
@@ -149,12 +173,8 @@ class StartupErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? AppColors.darkBg : AppColors.offWhiteBg;
-    final cardBg = isDark ? AppColors.darkCard : Colors.white;
-
     return Scaffold(
-      backgroundColor: bgColor,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -162,26 +182,24 @@ class StartupErrorView extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: AppColors.expenseClay.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
+                SkeuoInset(
+                  width: 76,
+                  height: 76,
+                  radius: 38,
+                  child: Icon(
                     Icons.sync_problem_rounded,
-                    size: 32,
-                    color: AppColors.expenseClay,
+                    size: 34,
+                    color: AppColors.expenseOf(context),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 22),
                 Text(
                   'Unable to Open Vault',
                   style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                    fontFamily: AppTheme.fontFamily,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimaryOf(context),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -189,28 +207,21 @@ class StartupErrorView extends StatelessWidget {
                   'LedgerLeaf encountered an error while starting up.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 14,
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                    fontSize: 13.5,
+                    color: AppColors.textSecondaryOf(context),
                   ),
                 ),
                 const SizedBox(height: 24),
-                Container(
-                  width: double.infinity,
+                SkeuoPanel(
+                  inset: true,
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: cardBg,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isDark ? const Color(0xFF2E3831) : const Color(0xFFE9E8E1),
-                    ),
-                  ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.info_outline_rounded,
                         size: 20,
-                        color: AppColors.textMuted,
+                        color: AppColors.textMutedOf(context),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -218,8 +229,8 @@ class StartupErrorView extends StatelessWidget {
                           errorMessage,
                           style: TextStyle(
                             fontSize: 13,
-                            height: 1.4,
-                            color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                            height: 1.45,
+                            color: AppColors.textPrimaryOf(context),
                           ),
                         ),
                       ),
@@ -227,47 +238,17 @@ class StartupErrorView extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.forestGreen,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      elevation: 0,
-                    ),
-                    onPressed: onRetry,
-                    icon: const Icon(Icons.refresh_rounded, size: 20),
-                    label: const Text(
-                      'Try Again',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                    ),
-                  ),
+                SkeuoButton(
+                  label: 'Try Again',
+                  icon: Icons.refresh_rounded,
+                  onPressed: onRetry,
                 ),
                 const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: isDark ? AppColors.darkTextPrimary : AppColors.forestGreen,
-                      side: BorderSide(
-                        color: isDark ? const Color(0xFF2E3831) : const Color(0xFFD6D4C8),
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    onPressed: () => _confirmReset(context),
-                    icon: const Icon(Icons.cleaning_services_outlined, size: 18),
-                    label: const Text(
-                      'Reset & Repair Vault',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                    ),
-                  ),
+                SkeuoButton(
+                  label: 'Reset & Repair Vault',
+                  icon: Icons.cleaning_services_outlined,
+                  secondary: true,
+                  onPressed: () => _confirmReset(context),
                 ),
               ],
             ),

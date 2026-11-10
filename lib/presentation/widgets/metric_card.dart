@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
+import 'skeuomorphic.dart';
 
 class MetricCard extends StatelessWidget {
   final String title;
@@ -24,45 +25,31 @@ class MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? AppColors.darkCard : AppColors.lightCard;
-    final primaryTextColor = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final secondaryTextColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final primaryTextColor = AppColors.textPrimaryOf(context);
+    final secondaryTextColor = AppColors.textSecondaryOf(context);
 
-    final resolvedColor = color ?? (isPositive ? AppColors.sagePrimary : primaryTextColor);
+    final resolvedColor = color ??
+        (isPositive ? AppColors.incomeOf(context) : primaryTextColor);
 
-    return Container(
+    return SkeuoPanel(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-          width: 1,
-        ),
-      ),
+      radius: 16,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: resolvedColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, size: 18, color: resolvedColor),
-              ),
-              const SizedBox(width: 8),
+              SkeuoIconWell(icon: icon, size: 34, iconSize: 17, radius: 10),
+              const SizedBox(width: 9),
               Expanded(
                 child: Text(
-                  title,
+                  title.toUpperCase(),
                   style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+                    fontFamily: AppTheme.fontFamily,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
                     color: secondaryTextColor,
-                    letterSpacing: -0.2,
+                    letterSpacing: 1.1,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -74,10 +61,11 @@ class MetricCard extends StatelessWidget {
           Text(
             hideAmount ? '••••••' : amount.format(),
             style: TextStyle(
-              fontSize: 18,
+              fontFamily: AppTheme.fontFamily,
+              fontSize: 19,
               fontWeight: FontWeight.w700,
               color: resolvedColor,
-              letterSpacing: -0.5,
+              letterSpacing: -0.4,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

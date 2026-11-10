@@ -61,17 +61,33 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: isDark ? AppColors.darkBg : AppColors.offWhiteBg,
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isDark
+                ? [const Color(0xFF1B1E20), const Color(0xFF0A0B0C)]
+                : [const Color(0xFFF8F4EC), const Color(0xFFDAD4C7)],
+          ),
           border: Border(
             top: BorderSide(
-              color: isDark ? AppColors.darkBorder : AppColors.borderSubtle,
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.10)
+                  : Colors.white.withValues(alpha: 0.85),
               width: 1,
             ),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.55 : 0.18),
+              blurRadius: 18,
+              offset: const Offset(0, -6),
+            ),
+          ],
         ),
         child: SafeArea(
+          top: false,
           child: SizedBox(
-            height: 60,
+            height: 62,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -126,8 +142,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     required bool isDark,
   }) {
     final isSelected = _currentIndex == index;
-    final activeColor = isDark ? const Color(0xFF75B58F) : AppColors.forestGreen;
-    final inactiveColor = isDark ? AppColors.darkTextSecondary : AppColors.textMuted;
+    final activeColor = AppColors.accentOf(context);
+    final inactiveColor = AppColors.textMutedOf(context);
 
     return Expanded(
       child: InkWell(
@@ -137,19 +153,63 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              isSelected ? activeIcon : icon,
-              size: 22,
-              color: isSelected ? activeColor : inactiveColor,
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              width: isSelected ? 46 : 38,
+              height: 29,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                gradient: isSelected
+                    ? LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          activeColor.withValues(alpha: isDark ? 0.20 : 0.16),
+                          activeColor.withValues(alpha: isDark ? 0.05 : 0.03),
+                        ],
+                      )
+                    : null,
+                border: isSelected
+                    ? Border.all(
+                        color: activeColor.withValues(alpha: 0.35),
+                        width: 0.8,
+                      )
+                    : null,
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withValues(
+                            alpha: isDark ? 0.35 : 0.08,
+                          ),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                        BoxShadow(
+                          color: Colors.white.withValues(
+                            alpha: isDark ? 0.05 : 0.65,
+                          ),
+                          blurRadius: 1,
+                          offset: const Offset(0, -1),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Icon(
+                isSelected ? activeIcon : icon,
+                size: 21,
+                color: isSelected ? activeColor : inactiveColor,
+              ),
             ),
             const SizedBox(height: 3),
             Text(
               label,
               style: TextStyle(
-                fontSize: 10,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                fontFamily: AppTheme.fontFamily,
+                fontSize: 10.2,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 color: isSelected ? activeColor : inactiveColor,
-                letterSpacing: -0.2,
+                letterSpacing: 0.25,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

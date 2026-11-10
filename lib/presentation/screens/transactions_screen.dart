@@ -7,6 +7,7 @@ import '../../core/utils/money.dart';
 import '../../domain/models/filter_criteria.dart';
 import '../../domain/models/transaction_model.dart';
 import '../../services/app_state.dart';
+import '../widgets/skeuomorphic.dart';
 import 'add_transaction_screen.dart';
 import 'transaction_detail_screen.dart';
 
@@ -192,7 +193,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final grouped = _groupTransactionsByDate(transactions);
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBg : AppColors.offWhiteBg,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Transactions'),
         actions: [
@@ -210,38 +211,53 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         children: [
-          // Subtitle (Screen 2 in ui.jpg)
-          const Text(
+          // Subtitle
+          Text(
             'A little clarity in every transaction.',
             style: TextStyle(
+              fontFamily: AppTheme.fontFamily,
               fontSize: 14,
-              color: AppColors.textSecondary,
-              letterSpacing: -0.2,
+              fontStyle: FontStyle.italic,
+              color: AppColors.textSecondaryOf(context),
+              letterSpacing: 0.1,
             ),
           ),
           const SizedBox(height: 18),
 
           // Search Bar with Filter Slider Button
-          Container(
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkCard : AppColors.cardWhite,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.borderSubtle),
-            ),
+          SkeuoPanel(
+            inset: true,
+            radius: 16,
+            padding: EdgeInsets.zero,
             child: TextField(
               controller: _searchController,
               onChanged: _onSearchChanged,
+              style: TextStyle(color: AppColors.textPrimaryOf(context)),
               decoration: InputDecoration(
                 hintText: 'Search merchants, amounts...',
-                prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.textMuted),
+                hintStyle: TextStyle(
+                  fontFamily: AppTheme.fontFamily,
+                  fontSize: 13.5,
+                  color: AppColors.textMutedOf(context),
+                ),
+                prefixIcon: Icon(
+                  Icons.search,
+                  size: 20,
+                  color: AppColors.textMutedOf(context),
+                ),
                 suffixIcon: IconButton(
-                  icon: const Icon(Icons.tune, size: 20, color: AppColors.textPrimary),
+                  icon: Icon(
+                    Icons.tune,
+                    size: 20,
+                    color: AppColors.textPrimaryOf(context),
+                  ),
                   onPressed: _showFilterModal,
                 ),
+                filled: false,
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                contentPadding: const EdgeInsets.symmetric(vertical: 15),
               ),
             ),
           ),
@@ -259,23 +275,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           ),
           const SizedBox(height: 20),
 
-          // Month Summary Card (Screen 2 in ui.jpg)
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkCard : AppColors.cardWhite,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.borderSubtle),
-            ),
+          // Month Summary Card
+          SkeuoPanel(
+            padding: const EdgeInsets.all(19),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   DateFormat('MMMM yyyy').format(DateTime.now()),
-                  style: const TextStyle(
-                    fontSize: 14,
+                  style: TextStyle(
+                    fontFamily: AppTheme.fontFamily,
+                    fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    letterSpacing: -0.2,
+                    letterSpacing: 0.1,
+                    color: AppColors.textPrimaryOf(context),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -285,22 +298,23 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'MONEY IN',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 9.5,
                               fontWeight: FontWeight.w600,
-                              color: AppColors.textMuted,
-                              letterSpacing: 0.5,
+                              letterSpacing: 1.3,
+                              color: AppColors.textMutedOf(context),
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             widget.appState.isPrivacyMode ? '••••' : incomeMoney.format(),
-                            style: const TextStyle(
-                              fontSize: 16,
+                            style: TextStyle(
+                              fontFamily: AppTheme.fontFamily,
+                              fontSize: 16.5,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.incomeGreen,
+                              color: AppColors.incomeOf(context),
                               letterSpacing: -0.3,
                             ),
                           ),
@@ -311,22 +325,23 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'MONEY OUT',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 9.5,
                               fontWeight: FontWeight.w600,
-                              color: AppColors.textMuted,
-                              letterSpacing: 0.5,
+                              letterSpacing: 1.3,
+                              color: AppColors.textMutedOf(context),
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             widget.appState.isPrivacyMode ? '••••' : expenseMoney.format(),
                             style: TextStyle(
-                              fontSize: 16,
+                              fontFamily: AppTheme.fontFamily,
+                              fontSize: 16.5,
                               fontWeight: FontWeight.w700,
-                              color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                              color: AppColors.textPrimaryOf(context),
                               letterSpacing: -0.3,
                             ),
                           ),
@@ -342,10 +357,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
           // Grouped Transactions
           if (transactions.isEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 40),
-              alignment: Alignment.center,
-              child: const Text('No transactions match the criteria.', style: TextStyle(color: AppColors.textSecondary)),
+            SkeuoPanel(
+              padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+              child: Center(
+                child: Text(
+                  'No transactions match the criteria.',
+                  style: TextStyle(color: AppColors.textSecondaryOf(context)),
+                ),
+              ),
             )
           else
             ...grouped.entries.map((entry) {
@@ -356,21 +375,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     padding: const EdgeInsets.only(left: 4, bottom: 8, top: 8),
                     child: Text(
                       entry.key,
-                      style: const TextStyle(
-                        fontSize: 12,
+                      style: TextStyle(
+                        fontSize: 10.5,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textSecondary,
-                        letterSpacing: 0.5,
+                        color: AppColors.textSecondaryOf(context),
+                        letterSpacing: 1.2,
                       ),
                     ),
                   ),
-                  Container(
+                  SkeuoPanel(
                     margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkCard : AppColors.cardWhite,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.borderSubtle),
-                    ),
+                    padding: EdgeInsets.zero,
                     child: Column(
                       children: entry.value.map((tx) {
                         final cat = widget.appState.categories.firstWhere(
@@ -387,11 +402,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           children: [
                             _buildTransactionItem(context, tx, cat, acc, isDark),
                             if (!isLast)
-                              Divider(
-                                height: 1,
-                                indent: 68,
-                                color: isDark ? AppColors.darkBorder : AppColors.borderSubtle,
-                              ),
+                              const SkeuoDivider(indent: 68, height: 0),
                           ],
                         );
                       }).toList(),
@@ -408,30 +419,53 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   Widget _buildFilterChip(String label, String value, bool isDark) {
     final isSelected = _typeFilter == value;
+    final accent = AppColors.accentOf(context);
     return InkWell(
       onTap: () => _setTypeFilter(value),
       borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
         decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.forestGreen
-              : (isDark ? AppColors.darkCard : AppColors.cardWhite),
+          gradient: isSelected
+              ? LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: isDark
+                      ? [const Color(0xFF2C3033), const Color(0xFF101214)]
+                      : [const Color(0xFF34383B), const Color(0xFF171A1C)],
+                )
+              : LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: isDark
+                      ? [const Color(0xFF1E2124), const Color(0xFF141617)]
+                      : [const Color(0xFFF8F4EC), const Color(0xFFE5DFD3)],
+                ),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected
-                ? AppColors.forestGreen
-                : (isDark ? AppColors.darkBorder : AppColors.borderSubtle),
+                ? Colors.white.withValues(alpha: 0.18)
+                : AppColors.borderOf(context),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.10),
+              blurRadius: isSelected ? 6 : 3,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 13,
+            fontFamily: AppTheme.fontFamily,
+            fontSize: 12.5,
             fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
             color: isSelected
-                ? Colors.white
-                : (isDark ? AppColors.darkTextPrimary : AppColors.textPrimary),
+                ? (isDark ? accent : const Color(0xFFF3EEE4))
+                : AppColors.textPrimaryOf(context),
           ),
         ),
       ),
@@ -446,13 +480,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
     for (final tx in list) {
       final txDate = DateTime(tx.timestamp.year, tx.timestamp.month, tx.timestamp.day);
+      final sameMonth =
+          tx.timestamp.year == now.year && tx.timestamp.month == now.month;
       String key;
       if (txDate == today) {
         key = 'TODAY · ${DateFormat("MMM d").format(tx.timestamp).toUpperCase()}';
       } else if (txDate == yesterday) {
         key = 'YESTERDAY · ${DateFormat("MMM d").format(tx.timestamp).toUpperCase()}';
-      } else {
+      } else if (sameMonth) {
         key = 'EARLIER THIS MONTH · ${DateFormat("MMM d").format(tx.timestamp).toUpperCase()}';
+      } else {
+        key = DateFormat("MMM d, yyyy").format(tx.timestamp).toUpperCase();
       }
 
       groups.putIfAbsent(key, () => []).add(tx);
@@ -490,17 +528,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            Container(
+            SkeuoInset(
               width: 40,
               height: 40,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF232A25) : const Color(0xFFF3F2EC),
-                borderRadius: BorderRadius.circular(10),
-              ),
+              radius: 11,
               child: Icon(
                 IconData(cat.iconCodePoint, fontFamily: 'MaterialIcons'),
-                size: 20,
-                color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                size: 19,
+                color: AppColors.accentOf(context),
               ),
             ),
             const SizedBox(width: 14),
@@ -510,10 +545,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 children: [
                   Text(
                     tx.merchant,
-                    style: const TextStyle(
-                      fontSize: 14,
+                    style: TextStyle(
+                      fontFamily: AppTheme.fontFamily,
+                      fontSize: 14.5,
                       fontWeight: FontWeight.w600,
-                      letterSpacing: -0.2,
+                      letterSpacing: -0.1,
+                      color: AppColors.textPrimaryOf(context),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -522,8 +559,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   Text(
                     '${cat.name} · ${acc.name}',
                     style: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                      fontSize: 11.5,
+                      color: AppColors.textSecondaryOf(context),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -537,20 +574,21 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 Text(
                   widget.appState.isPrivacyMode ? '••••' : amountStr,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontFamily: AppTheme.fontFamily,
+                    fontSize: 14.5,
                     fontWeight: FontWeight.w700,
                     color: isIncome
-                        ? AppColors.incomeGreen
-                        : (isDark ? AppColors.darkTextPrimary : AppColors.textPrimary),
-                    letterSpacing: -0.3,
+                        ? AppColors.incomeOf(context)
+                        : AppColors.textPrimaryOf(context),
+                    letterSpacing: -0.2,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   timeStr,
                   style: TextStyle(
-                    fontSize: 11,
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.textMuted,
+                    fontSize: 10.5,
+                    color: AppColors.textMutedOf(context),
                   ),
                 ),
               ],

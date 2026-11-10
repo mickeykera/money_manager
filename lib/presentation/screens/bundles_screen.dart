@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
 import '../../domain/models/bundle_model.dart';
 import '../../services/app_state.dart';
+import '../widgets/skeuomorphic.dart';
 
 class BundlesScreen extends StatefulWidget {
   final AppState appState;
@@ -67,21 +68,33 @@ class _BundlesScreenState extends State<BundlesScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Simulate Telecom Bundle SMS',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  fontFamily: AppTheme.fontFamily,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimaryOf(context),
+                ),
               ),
               const SizedBox(height: 6),
-              const Text(
+              Text(
                 'Test package purchase, remaining balance tracking, and consumption calculation.',
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondaryOf(context),
+                ),
               ),
               const SizedBox(height: 16),
               ...telecomPresets.map((preset) => ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(preset['title']!, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                     subtitle: Text(preset['sms']!, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    trailing: const Icon(Icons.send, color: AppColors.forestGreen, size: 20),
+                    trailing: Icon(
+                      Icons.send,
+                      color: AppColors.accentOf(context),
+                      size: 20,
+                    ),
                     onTap: () async {
                       Navigator.pop(ctx);
                       final res = await widget.appState.ingestSms(
@@ -92,7 +105,9 @@ class _BundlesScreenState extends State<BundlesScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(res.message),
-                            backgroundColor: AppColors.forestGreen,
+                            backgroundColor: res.success
+                                ? null
+                                : AppColors.expenseOf(context),
                           ),
                         );
                       }
@@ -114,7 +129,7 @@ class _BundlesScreenState extends State<BundlesScreen> {
         .toList();
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBg : AppColors.offWhiteBg,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Bundles'),
         actions: [
@@ -129,23 +144,24 @@ class _BundlesScreenState extends State<BundlesScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         children: [
           // Subtitle
-          const Text(
+          Text(
             'Telecom data, voice & SMS packages.',
             style: TextStyle(
+              fontFamily: AppTheme.fontFamily,
               fontSize: 14,
-              color: AppColors.textSecondary,
-              letterSpacing: -0.2,
+              fontStyle: FontStyle.italic,
+              color: AppColors.textSecondaryOf(context),
+              letterSpacing: 0.1,
             ),
           ),
           const SizedBox(height: 20),
 
           // Total Remaining Data Hero Card
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.forestGreenHero,
-              borderRadius: BorderRadius.circular(20),
-            ),
+          SkeuoPanel(
+            hero: true,
+            ornament: true,
+            radius: 22,
+            padding: const EdgeInsets.all(22),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -153,11 +169,12 @@ class _BundlesScreenState extends State<BundlesScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Remaining Internet Data',
+                      'REMAINING INTERNET DATA',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 10,
+                        letterSpacing: 1.4,
                         color: AppColors.forestGreenSubtext,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     Icon(Icons.wifi_tethering, color: AppColors.forestGreenSubtext, size: 18),
@@ -175,25 +192,37 @@ class _BundlesScreenState extends State<BundlesScreen> {
                                     summary.safaricomDataRemainingGb)
                                 .toStringAsFixed(2),
                       style: const TextStyle(
-                        fontSize: 34,
+                        fontFamily: AppTheme.fontFamily,
+                        fontSize: 38,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                        letterSpacing: -1.0,
+                        color: Color(0xFFF6F1E7),
+                        letterSpacing: -1.2,
+                        shadows: [
+                          Shadow(
+                            color: Color(0x66000000),
+                            blurRadius: 2,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 6),
                     Text(
                       summary.hasUnlimitedData ? 'Data' : 'GB Total',
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
                         color: AppColors.forestGreenSubtext,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                const Divider(color: Color(0xFF2D533E), height: 1),
+                Container(
+                  height: 1,
+                  color: Colors.white.withValues(alpha: 0.10),
+                ),
                 const SizedBox(height: 14),
 
                 // Providers row
@@ -204,35 +233,59 @@ class _BundlesScreenState extends State<BundlesScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Ethio telecom',
-                            style: TextStyle(color: AppColors.forestGreenSubtext, fontSize: 12),
+                            'ETHIO TELECOM',
+                            style: TextStyle(
+                              color: AppColors.forestGreenSubtext,
+                              fontSize: 9.5,
+                              letterSpacing: 1.1,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 3),
                           Text(
                             summary.ethioHasUnlimitedData
                                 ? 'Unlimited'
                                 : '${summary.ethioDataRemainingGb.toStringAsFixed(2)} GB',
-                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                            style: const TextStyle(
+                              fontFamily: AppTheme.fontFamily,
+                              color: Color(0xFFF2EDE3),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    Container(height: 32, width: 1, color: const Color(0xFF2D533E)),
+                    Container(
+                      height: 32,
+                      width: 1,
+                      color: Colors.white.withValues(alpha: 0.10),
+                    ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Safaricom Ethiopia',
-                            style: TextStyle(color: AppColors.forestGreenSubtext, fontSize: 12),
+                            'SAFARICOM ETHIOPIA',
+                            style: TextStyle(
+                              color: AppColors.forestGreenSubtext,
+                              fontSize: 9.5,
+                              letterSpacing: 1.1,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 3),
                           Text(
                             summary.safaricomHasUnlimitedData
                                 ? 'Unlimited'
                                 : '${summary.safaricomDataRemainingGb.toStringAsFixed(2)} GB',
-                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                            style: const TextStyle(
+                              fontFamily: AppTheme.fontFamily,
+                              color: Color(0xFFF2EDE3),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ],
                       ),
@@ -248,31 +301,49 @@ class _BundlesScreenState extends State<BundlesScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Active Packages',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: -0.3),
+                style: TextStyle(
+                  fontFamily: AppTheme.fontFamily,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.1,
+                  color: AppColors.textPrimaryOf(context),
+                ),
               ),
               Text(
                 '${bundles.length} tracked',
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(
+                  fontSize: 11.5,
+                  letterSpacing: 0.3,
+                  color: AppColors.textSecondaryOf(context),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 14),
 
           if (bundles.isEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 40),
-              alignment: Alignment.center,
-              child: const Column(
+            SkeuoPanel(
+              padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+              child: Column(
                 children: [
-                  Icon(Icons.cell_tower, size: 48, color: AppColors.textMuted),
-                  SizedBox(height: 12),
-                  Text('No telecom bundles tracked yet.', style: TextStyle(color: AppColors.textSecondary)),
-                  SizedBox(height: 4),
+                  SkeuoIconWell(
+                    icon: Icons.cell_tower,
+                    size: 54,
+                    iconSize: 26,
+                    radius: 16,
+                    color: AppColors.textMutedOf(context),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'No telecom bundles tracked yet.',
+                    style: TextStyle(color: AppColors.textSecondaryOf(context)),
+                  ),
+                  const SizedBox(height: 4),
                   Text(
                     'Forward an Ethio telecom or Safaricom SMS alert to see your balance.',
-                    style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                    style: TextStyle(fontSize: 12, color: AppColors.textMutedOf(context)),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -298,12 +369,8 @@ class _BundlesScreenState extends State<BundlesScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            Container(
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkCard : AppColors.cardWhite,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.borderSubtle),
-              ),
+            SkeuoPanel(
+              padding: EdgeInsets.zero,
               child: Column(
                 children: _observations.map((obs) {
                   return ListTile(
@@ -319,13 +386,13 @@ class _BundlesScreenState extends State<BundlesScreen> {
                       style: TextStyle(
                         fontSize: 12,
                         color: obs.estimatedUsageSincePrevious != null && obs.estimatedUsageSincePrevious! > 0
-                            ? AppColors.expenseClay
-                            : AppColors.textSecondary,
+                            ? AppColors.expenseOf(context)
+                            : AppColors.textSecondaryOf(context),
                       ),
                     ),
                     trailing: Text(
                       DateFormat('MMM d').format(obs.timestamp),
-                      style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                      style: TextStyle(fontSize: 11, color: AppColors.textMutedOf(context)),
                     ),
                   );
                 }).toList(),
@@ -349,14 +416,9 @@ class _BundlesScreenState extends State<BundlesScreen> {
         ? bundle.expiryFormatted
         : 'Valid until $expiryStr';
 
-    return Container(
+    return SkeuoPanel(
       margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCard : AppColors.cardWhite,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.borderSubtle),
-      ),
+      padding: const EdgeInsets.all(17),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -364,73 +426,54 @@ class _BundlesScreenState extends State<BundlesScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isEthio ? const Color(0xFFE8F3EC) : const Color(0xFFFBECEB),
-                      borderRadius: BorderRadius.circular(8),
+              Expanded(
+                child: Row(
+                  children: [
+                    SkeuoBadge(
+                      label: bundle.provider,
+                      tone: isEthio
+                          ? SkeuoBadgeTone.accent
+                          : SkeuoBadgeTone.neutral,
                     ),
-                    child: Text(
-                      bundle.provider,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: isEthio ? AppColors.forestGreen : const Color(0xFFC0392B),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    bundle.category.toUpperCase(),
-                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted, fontWeight: FontWeight.w500),
-                  ),
-                  if (bundle.id.contains('sample')) ...[
                     const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF3F2EC),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        'Sample Preview',
-                        style: TextStyle(fontSize: 10, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                    Text(
+                      bundle.category.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 10,
+                        letterSpacing: 1.0,
+                        color: AppColors.textMutedOf(context),
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
+                    if (bundle.id.contains('sample')) ...[
+                      const SizedBox(width: 8),
+                      const SkeuoBadge(label: 'Sample'),
+                    ],
                   ],
-                ],
+                ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: bundle.isExhausted ? AppColors.clayLight : AppColors.greenAccentPill,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  bundle.status.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: bundle.isExhausted ? AppColors.clayPrimary : AppColors.greenAccentText,
-                  ),
-                ),
+              SkeuoBadge(
+                label: bundle.status.toUpperCase(),
+                tone: bundle.isExhausted
+                    ? SkeuoBadgeTone.danger
+                    : SkeuoBadgeTone.accent,
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 13),
 
           // Bundle Name
           Text(
             bundle.bundleName,
-            style: const TextStyle(
-              fontSize: 16,
+            style: TextStyle(
+              fontFamily: AppTheme.fontFamily,
+              fontSize: 17,
               fontWeight: FontWeight.w700,
-              letterSpacing: -0.3,
+              letterSpacing: -0.2,
+              color: AppColors.textPrimaryOf(context),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 11),
 
           // Remaining vs Original
           Row(
@@ -440,66 +483,78 @@ class _BundlesScreenState extends State<BundlesScreen> {
                 bundle.isUnlimited
                     ? 'Unlimited'
                     : '${bundle.formattedRemaining} remaining',
-                style: const TextStyle(
-                  fontSize: 14,
+                style: TextStyle(
+                  fontFamily: AppTheme.fontFamily,
+                  fontSize: 14.5,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.forestGreen,
+                  color: AppColors.accentOf(context),
                 ),
               ),
               Text(
                 bundle.isUnlimited
                     ? 'Fair usage applies'
                     : 'of ${bundle.formattedAllowance}',
-                style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 11.5, color: AppColors.textMutedOf(context)),
               ),
             ],
           ),
           if (!bundle.isUnlimited) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 7),
 
-            // Progress Bar
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 8,
-                backgroundColor: isDark ? const Color(0xFF2C332D) : const Color(0xFFEBEAE4),
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  progress > 0.25 ? AppColors.forestGreen : AppColors.expenseClay,
-                ),
-              ),
+            // Inset progress track
+            SkeuoProgressBar(
+              value: progress,
+              color: progress > 0.25
+                  ? AppColors.accentOf(context)
+                  : AppColors.expenseOf(context),
             ),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: 13),
 
           // Expiry and Action Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  const Icon(Icons.timer_outlined, size: 14, color: AppColors.textSecondary),
-                  const SizedBox(width: 5),
-                  Text(
-                    expiryLabel,
-                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                  ),
-                ],
+              Flexible(
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.timer_outlined,
+                      size: 14,
+                      color: AppColors.textSecondaryOf(context),
+                    ),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        expiryLabel,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: AppColors.textSecondaryOf(context),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               InkWell(
                 onTap: () => _loadObservations(bundle.id),
-                child: const Row(
+                child: Row(
                   children: [
                     Text(
                       'Usage history',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.forestGreen,
+                        letterSpacing: 0.2,
+                        color: AppColors.accentOf(context),
                       ),
                     ),
-                    SizedBox(width: 2),
-                    Icon(Icons.chevron_right, size: 14, color: AppColors.forestGreen),
+                    const SizedBox(width: 2),
+                    Icon(
+                      Icons.chevron_right,
+                      size: 14,
+                      color: AppColors.accentOf(context),
+                    ),
                   ],
                 ),
               ),

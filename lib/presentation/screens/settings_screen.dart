@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../services/android_sms_service.dart';
 import '../../services/app_state.dart';
+import '../widgets/skeuomorphic.dart';
 import 'automation_setup_screen.dart';
 import 'sms_import_screen.dart';
 
@@ -181,18 +182,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryTextColor = isDark
-        ? AppColors.darkTextPrimary
-        : AppColors.lightTextPrimary;
-
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
           // General Section
-          _buildSectionHeader('General & Display', primaryTextColor),
+          _buildSectionHeader(
+            'General & Display',
+            AppColors.accentOf(context),
+          ),
           ListTile(
             title: const Text('Default Currency'),
             subtitle: const Text('Ethiopian Birr (ETB)'),
@@ -229,10 +229,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: (_) => widget.appState.togglePrivacyMode(),
           ),
 
-          const Divider(height: 24),
+          const SkeuoDivider(height: 24),
 
           // Privacy & Security Section
-          _buildSectionHeader('Privacy & Data Retention', primaryTextColor),
+          _buildSectionHeader(
+            'Privacy & Data Retention',
+            AppColors.accentOf(context),
+          ),
           SwitchListTile(
             title: const Text('Retain Original SMS'),
             subtitle: const Text(
@@ -275,12 +278,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
 
-          const Divider(height: 24),
+          const SkeuoDivider(height: 24),
 
           // Android SMS import / iOS Shortcuts Automation section
           _buildSectionHeader(
             AndroidSmsService.isSupported ? 'Android SMS' : 'iOS Automation',
-            primaryTextColor,
+            AppColors.accentOf(context),
           ),
           ListTile(
             title: Text(
@@ -309,10 +312,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
 
-          const Divider(height: 24),
+          const SkeuoDivider(height: 24),
 
           // Data Portability Section
-          _buildSectionHeader('Data Portability & Backup', primaryTextColor),
+          _buildSectionHeader(
+            'Data Portability & Backup',
+            AppColors.accentOf(context),
+          ),
           ListTile(
             title: const Text('Export to CSV'),
             subtitle: const Text(
@@ -328,7 +334,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: _importCsv,
           ),
 
-          const Divider(height: 24),
+          const SkeuoDivider(height: 24),
 
           // Dangerous Zone
           _buildSectionHeader('Danger Zone', AppColors.clayPrimary),
@@ -357,14 +363,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildSectionHeader(String title, Color color) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Text(
-        title,
+        title.toUpperCase(),
         style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.bold,
+          fontFamily: AppTheme.fontFamily,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700,
           color: color,
-          letterSpacing: 0.2,
+          letterSpacing: 1.5,
         ),
       ),
     );

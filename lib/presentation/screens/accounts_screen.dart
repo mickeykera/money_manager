@@ -8,6 +8,7 @@ import '../../data/database/database_helper.dart';
 import '../../domain/models/account_model.dart';
 import '../../domain/models/filter_criteria.dart';
 import '../../services/app_state.dart';
+import '../widgets/skeuomorphic.dart';
 import 'transactions_screen.dart';
 
 class AccountsScreen extends StatefulWidget {
@@ -50,7 +51,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
     final totalMoney = Money(totalBalanceSantims);
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBg : AppColors.offWhiteBg,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Accounts'),
         actions: [
@@ -65,23 +66,26 @@ class _AccountsScreenState extends State<AccountsScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         children: [
           // Subtitle
-          const Text(
+          Text(
             'Your money, with a place for every part.',
             style: TextStyle(
+              fontFamily: AppTheme.fontFamily,
               fontSize: 14,
-              color: AppColors.textSecondary,
-              letterSpacing: -0.2,
+              fontStyle: FontStyle.italic,
+              color: AppColors.textSecondaryOf(context),
+              letterSpacing: 0.1,
             ),
           ),
           const SizedBox(height: 20),
 
           // Total across X accounts
           Text(
-            'Total across ${appState.accounts.length} accounts',
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textSecondary,
+            'TOTAL ACROSS ${appState.accounts.length} ACCOUNTS',
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.4,
+              color: AppColors.textSecondaryOf(context),
             ),
           ),
           const SizedBox(height: 6),
@@ -93,20 +97,23 @@ class _AccountsScreenState extends State<AccountsScreen> {
             children: [
               Text(
                 appState.isPrivacyMode ? '••••••' : totalMoney.format(includeCurrency: false),
-                style: const TextStyle(
-                  fontSize: 34,
+                style: TextStyle(
+                  fontFamily: AppTheme.fontFamily,
+                  fontSize: 38,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                  letterSpacing: -1.0,
+                  color: AppColors.textPrimaryOf(context),
+                  letterSpacing: -1.2,
                 ),
               ),
               const SizedBox(width: 8),
-              const Text(
+              Text(
                 AppConstants.defaultCurrency,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontFamily: AppTheme.fontFamily,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textMuted,
+                  letterSpacing: 0.8,
+                  color: AppColors.textMutedOf(context),
                 ),
               ),
             ],
@@ -122,20 +129,17 @@ class _AccountsScreenState extends State<AccountsScreen> {
           const SizedBox(height: 24),
 
           // Balances Disclaimer Footer Note
-          Container(
+          SkeuoPanel(
+            inset: true,
+            radius: 14,
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkCard.withOpacity(0.5) : Colors.white.withOpacity(0.5),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.borderSubtle),
-            ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
                   Icons.info_outline,
                   size: 18,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                  color: AppColors.textSecondaryOf(context),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -143,8 +147,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     'Balances reflect imported alerts or manual updates, not a live connection to your bank.',
                     style: TextStyle(
                       fontSize: 12,
-                      height: 1.4,
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                      height: 1.45,
+                      color: AppColors.textSecondaryOf(context),
                     ),
                   ),
                 ),
@@ -159,16 +163,11 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
   Widget _buildAccountCard(BuildContext context, AccountModel acc, bool isExpanded, bool isDark) {
     final balanceMoney = acc.balance;
-    final cardBg = isDark ? AppColors.darkCard : AppColors.cardWhite;
-    final borderColor = isDark ? AppColors.darkBorder : AppColors.borderSubtle;
 
-    return Container(
+    return SkeuoPanel(
       margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderColor),
-      ),
+      radius: 18,
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -178,19 +177,12 @@ class _AccountsScreenState extends State<AccountsScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Bank/Wallet Icon
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E2822) : const Color(0xFFF3F2EC),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    _getAccountIcon(acc),
-                    size: 20,
-                    color: isDark ? const Color(0xFF98C5AA) : AppColors.forestGreen,
-                  ),
+                // Bank/Wallet icon in a debossed well
+                SkeuoIconWell(
+                  icon: _getAccountIcon(acc),
+                  size: 42,
+                  iconSize: 20,
+                  radius: 12,
                 ),
                 const SizedBox(width: 12),
                 // Name & Type
@@ -201,18 +193,21 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       Text(
                         acc.name,
                         style: TextStyle(
-                          fontSize: 16,
+                          fontFamily: AppTheme.fontFamily,
+                          fontSize: 16.5,
                           fontWeight: FontWeight.w600,
-                          color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
-                          letterSpacing: -0.3,
+                          color: AppColors.textPrimaryOf(context),
+                          letterSpacing: -0.2,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         '${acc.type.toUpperCase()} · ${acc.accountNumberMasked ?? "••••"}',
                         style: TextStyle(
-                          fontSize: 12,
-                          color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                          fontSize: 10,
+                          letterSpacing: 0.7,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textSecondaryOf(context),
                         ),
                       ),
                     ],
@@ -231,10 +226,12 @@ class _AccountsScreenState extends State<AccountsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Available balance',
+                  'AVAILABLE BALANCE',
                   style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.textMuted,
+                    fontSize: 9.5,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textMutedOf(context),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -244,16 +241,17 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     Text(
                       widget.appState.isPrivacyMode ? '••••••' : balanceMoney.format(),
                       style: TextStyle(
-                        fontSize: 24,
+                        fontFamily: AppTheme.fontFamily,
+                        fontSize: 26,
                         fontWeight: FontWeight.w700,
-                        color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                        color: AppColors.textPrimaryOf(context),
                         letterSpacing: -0.6,
                       ),
                     ),
                     IconButton(
                       icon: Icon(
                         isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.textMuted,
+                        color: AppColors.textSecondaryOf(context),
                       ),
                       onPressed: () => _toggleExpand(acc.id),
                     ),
@@ -263,9 +261,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
             ),
           ),
 
-          // Expanded details (Screen 3 in ui.jpg)
+          // Expanded details
           if (isExpanded) ...[
-            Divider(color: borderColor, height: 1),
+            const SkeuoDivider(height: 0),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
               child: Column(
@@ -308,18 +306,19 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
+                          Text(
                             'View transactions',
                             style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.forestGreen,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.2,
+                              color: AppColors.accentOf(context),
                             ),
                           ),
                           Icon(
                             Icons.arrow_forward_ios,
                             size: 13,
-                            color: isDark ? AppColors.darkTextSecondary : AppColors.forestGreen,
+                            color: AppColors.accentOf(context),
                           ),
                         ],
                       ),
@@ -336,50 +335,15 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
   Widget _buildBadge(bool isSmsLinked) {
     if (isSmsLinked) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: AppColors.greenAccentPill,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.chat_bubble_outline, size: 12, color: AppColors.greenAccentText),
-            SizedBox(width: 5),
-            Text(
-              'SMS linked',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: AppColors.greenAccentText,
-              ),
-            ),
-          ],
-        ),
+      return const SkeuoBadge(
+        label: 'SMS linked',
+        icon: Icons.chat_bubble_outline,
+        tone: SkeuoBadgeTone.accent,
       );
     } else {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: const Color(0xFFEFEFEA),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.edit_outlined, size: 12, color: AppColors.textSecondary),
-            SizedBox(width: 5),
-            Text(
-              'Manual',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
+      return const SkeuoBadge(
+        label: 'Manual',
+        icon: Icons.edit_outlined,
       );
     }
   }
@@ -391,16 +355,19 @@ class _AccountsScreenState extends State<AccountsScreen> {
         Text(
           label,
           style: TextStyle(
-            fontSize: 13,
-            color: isDark ? AppColors.darkTextSecondary : AppColors.textMuted,
+            fontSize: 12.5,
+            color: AppColors.textMutedOf(context),
           ),
         ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textPrimaryOf(context),
+            ),
           ),
         ),
       ],

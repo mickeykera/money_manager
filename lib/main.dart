@@ -12,6 +12,7 @@ import 'data/repositories/settings_repository.dart';
 import 'presentation/screens/main_navigation_shell.dart';
 import 'presentation/screens/onboarding_screen.dart';
 import 'presentation/screens/startup_view.dart';
+import 'presentation/widgets/skeuomorphic.dart';
 import 'services/android_sms_service.dart';
 import 'services/app_state.dart';
 import 'services/native_bridge.dart';
@@ -34,7 +35,7 @@ void main() {
   // 3. Fallback error widget builder for runtime render crashes
   ErrorWidget.builder = (FlutterErrorDetails details) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9F9F6),
+      backgroundColor: const Color(0xFFE7E3DA),
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -53,7 +54,7 @@ void main() {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.forestGreen,
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -244,6 +245,9 @@ class _LedgerLeafAppState extends State<LedgerLeafApp> {
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: _appState!.themeMode,
+            builder: (context, child) => SkeuoBackdrop(
+              child: child ?? const SizedBox.shrink(),
+            ),
             home: _onboardingCompleted
                 ? MainNavigationShell(appState: _appState!)
                 : OnboardingScreen(
@@ -259,6 +263,11 @@ class _LedgerLeafAppState extends State<LedgerLeafApp> {
       title: 'LedgerLeaf',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system,
+      builder: (context, child) => SkeuoBackdrop(
+        child: child ?? const SizedBox.shrink(),
+      ),
       home: _status == StartupStatus.loading
           ? const StartupLoadingView()
           : StartupErrorView(
