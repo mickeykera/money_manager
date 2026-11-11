@@ -206,43 +206,61 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       horizontal: 14,
                       vertical: 10,
                     ),
-                    child: TextFormField(
-                      controller: _amountController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      style: TextStyle(
-                        fontFamily: AppTheme.fontFamily,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                        color: primaryTextColor,
-                        letterSpacing: -0.5,
-                      ),
-                      decoration: InputDecoration(
-                        prefixText: 'ETB ',
-                        prefixStyle: TextStyle(
-                          fontFamily: AppTheme.fontFamily,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w600,
-                          color: secondaryTextColor,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          'ETB',
+                          style: TextStyle(
+                            fontFamily: AppTheme.fontFamily,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                            color: secondaryTextColor,
+                          ),
                         ),
-                        hintText: '0.00',
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        disabledBorder: InputBorder.none,
-                        filled: false,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      validator: (val) {
-                        if (val == null || val.trim().isEmpty) {
-                          return 'Enter an amount';
-                        }
-                        final parsed = Money.parseString(val);
-                        if (parsed.santims <= 0) {
-                          return 'Amount must be greater than zero';
-                        }
-                        return null;
-                      },
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _amountController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            style: TextStyle(
+                              fontFamily: AppTheme.fontFamily,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w700,
+                              color: primaryTextColor,
+                              letterSpacing: -0.5,
+                            ),
+                            textAlignVertical: TextAlignVertical.center,
+                            decoration: InputDecoration(
+                              hintText: '0.00',
+                              hintStyle: TextStyle(
+                                fontFamily: AppTheme.fontFamily,
+                                fontSize: 24,
+                                fontWeight: FontWeight.w600,
+                                color: secondaryTextColor.withValues(alpha: 0.5),
+                              ),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              disabledBorder: InputBorder.none,
+                              filled: false,
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                            validator: (val) {
+                              if (val == null || val.trim().isEmpty) {
+                                return 'Enter an amount';
+                              }
+                              final parsed = Money.parseString(val);
+                              if (parsed.santims <= 0) {
+                                return 'Amount must be greater than zero';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
