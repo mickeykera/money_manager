@@ -38,6 +38,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       AppConstants.keySmsRetentionDays,
     );
 
+    if (!mounted) return;
     setState(() {
       _retainSms = retain != 'false';
       _retentionDays = retention ?? '30';

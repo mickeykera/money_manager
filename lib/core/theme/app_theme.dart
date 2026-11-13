@@ -398,10 +398,15 @@ class AppTheme {
             return buttonGradientBottom;
           }),
           foregroundColor: WidgetStateProperty.resolveWith((states) {
+            // The raised button is always a dark slab, so its ink must stay
+            // ivory even in dark mode (where onPrimary is dark for brass).
+            final ink = isDark
+                ? AppColors.darkTextPrimary
+                : const Color(0xFFFFFBF2);
             if (states.contains(WidgetState.disabled)) {
-              return onPrimary.withValues(alpha: 0.45);
+              return ink.withValues(alpha: 0.45);
             }
-            return onPrimary;
+            return ink;
           }),
           overlayColor: WidgetStatePropertyAll(
             Colors.white.withValues(alpha: 0.06),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../../domain/models/account_model.dart';
 import '../../domain/models/category_model.dart';
@@ -59,6 +60,17 @@ class TransactionDetailScreen extends StatelessWidget {
     final sign = isIncome ? '+' : (isExpense ? '-' : '');
     final amountFormatted = '$sign${transaction.money.format(includeCurrency: false)}';
     final borderColor = AppColors.borderOf(context);
+    final hasSourceSms =
+        (transaction.originalMessage ?? '').trim().isNotEmpty;
+    final sourceLabel = transaction.source == AppConstants.sourceSms
+        ? 'SMS imported'
+        : transaction.source == 'csv'
+            ? 'CSV imported'
+            : 'Manual entry';
+    final sourceBadgeLabel =
+        Theme.of(context).platform == TargetPlatform.iOS
+            ? 'Via Shortcuts'
+            : 'From inbox';
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -178,8 +190,8 @@ class TransactionDetailScreen extends StatelessWidget {
           Center(
             child: SkeuoBadge(
               label: transaction.isReviewed
-                  ? 'SMS imported · Verified'
-                  : 'Imported · Needs review',
+                  ? '$sourceLabel · Verified'
+                  : '$sourceLabel · Needs review',
               icon: transaction.isReviewed
                   ? Icons.check_circle_outline
                   : Icons.priority_high,
@@ -260,91 +272,98 @@ class TransactionDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // "Source SMS" panel
-          SkeuoPanel(
-            padding: const EdgeInsets.all(18),
-            radius: 18,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Source SMS',
-                      style: TextStyle(
-                        fontFamily: AppTheme.fontFamily,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.1,
-                        color: AppColors.textPrimaryOf(context),
+          // "Source SMS" panel — only for transactions captured from a message
+          if (hasSourceSms) ...[
+            SkeuoPanel(
+              padding: const EdgeInsets.all(18),
+              radius: 18,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Source SMS',
+                        style: TextStyle(
+                          fontFamily: AppTheme.fontFamily,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.1,
+                          color: AppColors.textPrimaryOf(context),
+                        ),
                       ),
-                    ),
-                    const SkeuoBadge(
-                      label: 'Via Shortcuts',
-                      icon: Icons.auto_awesome,
-                      tone: SkeuoBadgeTone.accent,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
+                      SkeuoBadge(
+                        label: sourceBadgeLabel,
+                        icon: Icons.auto_awesome,
+                        tone: SkeuoBadgeTone.accent,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
 
-                // Sender and Date
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '${account.name} · Alert',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondaryOf(context),
+                  // Sender and Date
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          '${account.name} · Alert',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondaryOf(context),
+                          ),
+                        ),
                       ),
-                    ),
-                    Text(
-                      DateFormat('MMM d, h:mm a').format(transaction.timestamp),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textMutedOf(context),
+                      const SizedBox(width: 10),
+                      Text(
+                        DateFormat('MMM d, h:mm a')
+                            .format(transaction.timestamp),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textMutedOf(context),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
 
-                // Inset raw SMS well
-                SkeuoPanel(
-                  inset: true,
-                  radius: 12,
-                  padding: const EdgeInsets.all(14),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: SelectableText(
-                      transaction.originalMessage ??
-                          'Dear Customer, ${transaction.money.format()} has been processed for ${transaction.merchant}. Ref: ${transaction.reference ?? "None"}.',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        height: 1.5,
-                        fontFamily: 'monospace',
-                        color: AppColors.textPrimaryOf(context),
+                  // Inset raw SMS well
+                  SkeuoPanel(
+                    inset: true,
+                    radius: 12,
+                    padding: const EdgeInsets.all(14),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: SelectableText(
+                        transaction.originalMessage!,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.5,
+                          fontFamily: 'monospace',
+                          color: AppColors.textPrimaryOf(context),
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
+                  const SizedBox(height: 12),
 
-                Text(
-                  'Check the parsed details against your message. Tap Edit to correct anything before marking reviewed.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.4,
-                    color: AppColors.textSecondaryOf(context),
+                  Text(
+                    'Check the parsed details against your message. Tap Edit to correct anything before marking reviewed.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: AppColors.textSecondaryOf(context),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 28),
+            const SizedBox(height: 28),
+          ],
 
           // Bottom action
           SkeuoButton(
@@ -379,7 +398,6 @@ class TransactionDetailScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   label,
@@ -390,31 +408,39 @@ class TransactionDetailScreen extends StatelessWidget {
                         : AppColors.textSecondary,
                   ),
                 ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      value,
-                      style: TextStyle(
-                        fontFamily: AppTheme.fontFamily,
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                        color: isDark
-                            ? AppColors.darkTextPrimary
-                            : AppColors.textPrimary,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          value,
+                          textAlign: TextAlign.end,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: AppTheme.fontFamily,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? AppColors.darkTextPrimary
+                                : AppColors.textPrimary,
+                          ),
+                        ),
                       ),
-                    ),
-                    if (hasChevron) ...[
-                      const SizedBox(width: 8),
-                      Icon(
-                        Icons.chevron_right,
-                        size: 16,
-                        color: isDark
-                            ? AppColors.darkTextMuted
-                            : AppColors.textMuted,
-                      ),
+                      if (hasChevron) ...[
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.chevron_right,
+                          size: 16,
+                          color: isDark
+                              ? AppColors.darkTextMuted
+                              : AppColors.textMuted,
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ],
             ),

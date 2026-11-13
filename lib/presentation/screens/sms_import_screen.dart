@@ -178,25 +178,24 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
           child: ListView(
             controller: scrollController,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+              const SizedBox(height: 4),
+              Text(
+                'Test Ingestion with Sample SMS',
+                style: TextStyle(
+                  fontFamily: AppTheme.fontFamily,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimaryOf(ctx),
                 ),
               ),
-              const SizedBox(height: 16),
-              const Text(
-                'Test Ingestion with Sample SMS',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-              ),
               const SizedBox(height: 6),
-              const Text(
+              Text(
                 'Select a realistic Ethiopian bank or telecom message to test local parsing and automatic capture.',
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: AppColors.textSecondaryOf(ctx),
+                ),
               ),
               const SizedBox(height: 16),
               ...sampleMessages.map(
@@ -207,9 +206,11 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                   child: ListTile(
                     title: Text(
                       sample['title']!,
-                      style: const TextStyle(
+                      style: TextStyle(
+                        fontFamily: AppTheme.fontFamily,
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
+                        color: AppColors.textPrimaryOf(ctx),
                       ),
                     ),
                     subtitle: Padding(
@@ -249,9 +250,14 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                 ),
               ),
               const Divider(height: 28),
-              const Text(
-                'Or Paste Custom SMS:',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              Text(
+                'Or paste a custom SMS',
+                style: TextStyle(
+                  fontFamily: AppTheme.fontFamily,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: AppColors.textPrimaryOf(ctx),
+                ),
               ),
               const SizedBox(height: 8),
               TextField(
@@ -262,7 +268,10 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              ElevatedButton(
+              SkeuoButton(
+                label: 'Simulate Ingestion',
+                icon: Icons.play_arrow,
+                height: 48,
                 onPressed: () async {
                   if (_customSmsController.text.trim().isNotEmpty) {
                     final text = _customSmsController.text.trim();
@@ -274,14 +283,13 @@ class _SmsImportScreenState extends State<SmsImportScreen> {
                         SnackBar(
                           content: Text(res.message),
                           backgroundColor: res.success
-                              ? AppColors.forestGreen
-                              : AppColors.expenseClay,
+                              ? null
+                              : AppColors.expenseOf(context),
                         ),
                       );
                     }
                   }
                 },
-                child: const Text('Simulate Ingestion'),
               ),
               const SizedBox(height: 20),
             ],
